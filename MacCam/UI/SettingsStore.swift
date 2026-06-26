@@ -74,7 +74,9 @@ struct AppSettings: Equatable {
     var audioEnabled: Bool
     var audioDeviceID: String?
     var voiceTriggerEnabled: Bool
+    var triggerMode: TriggerMode
     var voiceSensitivity: Int
+    var audioOnly: Bool
     var codec: VideoCodec
     var quality: Quality
     var autoCleanup: Bool
@@ -88,6 +90,11 @@ struct AppSettings: Equatable {
     var detectionMask: String
 
     var motionThreshold: Double { MotionMath.motionThreshold(forSensitivity: sensitivity) }
+
+    /// Audio-only is effective only when audio is on and the trigger permits it
+    /// (Continuous or Voice). A stale `audioOnly` in any other combination is
+    /// inert, so the camera/recorder never silently drop video.
+    var effectiveAudioOnly: Bool { audioOnly && audioEnabled && triggerMode.allowsAudioOnly }
 }
 
 /// `UserDefaults`-backed, observable settings. `@Published` properties persist
@@ -107,6 +114,8 @@ final class SettingsStore: ObservableObject {
         static let audioEnabled = "audioEnabled"
         static let audioDeviceID = "audioDeviceID"
         static let voiceTriggerEnabled = "voiceTriggerEnabled"
+        static let triggerMode = "triggerMode"
+        static let audioOnly = "audioOnly"
         static let voiceSensitivity = "voiceSensitivity"
         static let codec = "codec"
         static let quality = "quality"
@@ -150,6 +159,8 @@ final class SettingsStore: ObservableObject {
     @Published var audioEnabled: Bool { didSet { defaults.set(audioEnabled, forKey: Key.audioEnabled) } }
     @Published var audioDeviceID: String? { didSet { defaults.set(audioDeviceID, forKey: Key.audioDeviceID) } }
     @Published var voiceTriggerEnabled: Bool { didSet { defaults.set(voiceTriggerEnabled, forKey: Key.voiceTriggerEnabled) } }
+    @Published var triggerMode: TriggerMode { didSet { defaults.set(triggerMode.rawValue, forKey: Key.triggerMode) } }
+    @Published var audioOnly: Bool { didSet { defaults.set(audioOnly, forKey: Key.audioOnly) } }
     @Published var voiceSensitivity: Int { didSet { defaults.set(voiceSensitivity, forKey: Key.voiceSensitivity) } }
     @Published var codec: VideoCodec { didSet { defaults.set(codec.rawValue, forKey: Key.codec) } }
     @Published var quality: Quality { didSet { defaults.set(quality.rawValue, forKey: Key.quality) } }
@@ -182,6 +193,8 @@ final class SettingsStore: ObservableObject {
             Key.preRollEnabled: false,
             Key.preRoll: 3.0,
             Key.audioEnabled: false,
+            Key.triggerMode: TriggerMode.motion.rawValue,
+            Key.audioOnly: false,
             Key.voiceSensitivity: 2,
             Key.codec: VideoCodec.hevc.rawValue,
             Key.quality: Quality.medium.rawValue,
@@ -209,6 +222,8 @@ final class SettingsStore: ObservableObject {
         audioEnabled = defaults.bool(forKey: Key.audioEnabled)
         audioDeviceID = defaults.string(forKey: Key.audioDeviceID)
         voiceTriggerEnabled = defaults.bool(forKey: Key.voiceTriggerEnabled)
+        triggerMode = TriggerMode(rawValue: defaults.string(forKey: Key.triggerMode) ?? "motion") ?? .motion
+        audioOnly = defaults.bool(forKey: Key.audioOnly)
         voiceSensitivity = defaults.integer(forKey: Key.voiceSensitivity)
         codec = VideoCodec(rawValue: defaults.string(forKey: Key.codec) ?? "hevc") ?? .hevc
         quality = Quality(rawValue: defaults.string(forKey: Key.quality) ?? "medium") ?? .medium
@@ -240,7 +255,9 @@ final class SettingsStore: ObservableObject {
             audioEnabled: audioEnabled,
             audioDeviceID: audioDeviceID,
             voiceTriggerEnabled: voiceTriggerEnabled,
+            triggerMode: triggerMode,
             voiceSensitivity: voiceSensitivity,
+            audioOnly: audioOnly,
             codec: codec,
             quality: quality,
             autoCleanup: autoCleanup,
