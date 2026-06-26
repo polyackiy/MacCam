@@ -13,6 +13,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Detection zones: ignore parts of the frame via a 16×9 grid mask painted over a
   camera snapshot, reducing false triggers.
 
+### Fixed
+- Audio was never recorded. The hardened runtime requires the
+  `com.apple.security.device.audio-input` entitlement (distinct from the sandbox
+  `device.microphone` key), which was missing, so the microphone was blocked.
+  Also: a capturable microphone is now chosen (built-in preferred) instead of the
+  system default — which may be an un-capturable Bluetooth/output device — and
+  microphone access is requested when monitoring starts so the prompt appears.
+
 ## [1.0.0] - 2026-06-26
 
 First public release.

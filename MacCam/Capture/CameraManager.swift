@@ -2,6 +2,7 @@ import Foundation
 import AVFoundation
 import Combine
 import CoreImage
+import CoreAudio
 
 /// Adapts a real capture format to the testable `FormatInfo` protocol.
 struct AVFormatAdapter: FormatInfo {
@@ -85,19 +86,58 @@ final class CameraManager: NSObject, ObservableObject {
 
         audioOutput = nil
         if settings.audioEnabled {
-            if let mic = AVCaptureDevice.default(for: .audio),
-               let aInput = try? AVCaptureDeviceInput(device: mic),
-               session.canAddInput(aInput) {
+            if let aInput = makeAudioInput() {
                 session.addInput(aInput)
+                let aout = AVCaptureAudioDataOutput()
+                aout.setSampleBufferDelegate(delegate, queue: audioQueue)
+                if session.canAddOutput(aout) { session.addOutput(aout) }
+                audioOutput = aout
+                Log.capture.info("Audio input: \(aInput.device.localizedName, privacy: .public)")
+            } else {
+                Log.capture.error("Audio enabled but no usable microphone input was found")
             }
-            let aout = AVCaptureAudioDataOutput()
-            aout.setSampleBufferDelegate(delegate, queue: audioQueue)
-            if session.canAddOutput(aout) { session.addOutput(aout) }
-            audioOutput = aout
         }
 
         session.commitConfiguration()
         updateFormatString(device)
+    }
+
+    /// Pick an audio device that yields a usable capture input. The system
+    /// default audio device may be an un-capturable Bluetooth/output device
+    /// (e.g. A2DP headphones), so all audio devices are enumerated, the built-in
+    /// microphone is preferred (Bluetooth last), and each is tried until one
+    /// produces a valid input. Returns nil if none work.
+    private func makeAudioInput() -> AVCaptureDeviceInput? {
+        var candidates: [AVCaptureDevice] = []
+        var seen = Set<String>()
+        func add(_ device: AVCaptureDevice?) {
+            guard let device, seen.insert(device.uniqueID).inserted else { return }
+            candidates.append(device)
+        }
+        if #available(macOS 14.0, *) {
+            AVCaptureDevice.DiscoverySession(deviceTypes: [.microphone, .external],
+                                             mediaType: .audio, position: .unspecified)
+                .devices.forEach(add)
+        }
+        AVCaptureDevice.devices(for: .audio).forEach(add)   // reliable on macOS; includes built-in
+        add(AVCaptureDevice.default(for: .audio))
+
+        candidates.sort { transportRank($0) < transportRank($1) }
+        for device in candidates {
+            if let input = try? AVCaptureDeviceInput(device: device), session.canAddInput(input) {
+                return input
+            }
+        }
+        return nil
+    }
+
+    /// Built-in microphone first, unknown second, Bluetooth last.
+    private func transportRank(_ device: AVCaptureDevice) -> Int {
+        switch UInt32(bitPattern: device.transportType) {
+        case kAudioDeviceTransportTypeBuiltIn: return 0
+        case kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE: return 2
+        default: return 1
+        }
     }
 
     private func applyMaxFormat(_ device: AVCaptureDevice, targetFPS: Int, minFPS: Int) {

@@ -63,7 +63,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func wireMenu() {
         menuBar.onToggleMonitoring = { [weak self] in
             guard let self else { return }
-            if self.monitoring { self.stopMonitoring() } else { self.startMonitoring(manual: true) }
+            if self.monitoring {
+                self.stopMonitoring()
+            } else {
+                // Ensure microphone access is requested via a user action (so the
+                // TCC prompt actually appears) before configuring audio capture.
+                self.ensureAudioAuthorized { self.startMonitoring(manual: true) }
+            }
         }
         menuBar.onOpenFolder = { [weak self] in self?.fileStore.openInFinder() }
         menuBar.onOpenSettings = { [weak self] in self?.openSettings() }
@@ -240,8 +246,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
             if !granted { DispatchQueue.main.async { self?.showAccessDenied(.video) } }
         }
-        if settings.audioEnabled {
-            AVCaptureDevice.requestAccess(for: .audio) { _ in }
+    }
+
+    /// If audio is enabled, make sure microphone access has been requested before
+    /// continuing. Activates the app so the system prompt is visible (this app is
+    /// a menu-bar accessory). Proceeds regardless of the result — video still
+    /// records if the user declines.
+    private func ensureAudioAuthorized(_ then: @escaping () -> Void) {
+        guard settings.audioEnabled else { then(); return }
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .notDetermined:
+            NSApp.activate(ignoringOtherApps: true)
+            AVCaptureDevice.requestAccess(for: .audio) { _ in
+                DispatchQueue.main.async(execute: then)
+            }
+        default:
+            then()
         }
     }
 
