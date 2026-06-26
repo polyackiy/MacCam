@@ -18,6 +18,11 @@ final class RecordingController {
     private var ring: RingBuffer<CMSampleBuffer>
     private var ringDuration: Double
 
+    /// Injectable clock for the recording-schedule gate (tests override it).
+    var clock: () -> Date = Date.init
+    private var recordingSchedule = WeeklySchedule()
+    private let scheduleCalendar = Calendar.current
+
     /// Called on the main queue with (isRecording, lastClipName?).
     var onStateChange: ((Bool, String?) -> Void)?
     private(set) var isRecording = false
@@ -55,6 +60,7 @@ final class RecordingController {
         maxStorageBytes = StorageMath.gbToBytes(s.maxStorageGB)
         minFreeBytes = StorageMath.gbToBytes(s.minFreeSpaceGB)
         diskPolicy = s.diskLimitPolicy
+        recordingSchedule = s.recordingSchedule
     }
 
     /// Apply new settings. Detector/threshold changes take effect immediately;
@@ -88,7 +94,13 @@ final class RecordingController {
             ring.push(sampleBuffer, pts: now)
         }
 
-        switch fsm.step(motion: motion, now: now) {
+        // Recording schedule gate: outside its window, ignore motion so no clip
+        // starts (monitoring keeps running). Disabled schedule ⇒ always allowed.
+        let allowed = !recordingSchedule.enabled
+            || recordingSchedule.isActive(at: clock(), calendar: scheduleCalendar)
+        let effectiveMotion = motion && allowed
+
+        switch fsm.step(motion: effectiveMotion, now: now) {
         case .none:
             break
 
