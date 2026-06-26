@@ -189,7 +189,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 fileStore: fileStore,
                 onReconfigure: { [weak self] in self?.reconfigureIfMonitoring() },
                 onLaunchAtLoginChange: { [weak self] enabled in self?.setLaunchAtLogin(enabled) },
-                onEditZones: { [weak self] in self?.openZoneEditor() })
+                onEditZones: { [weak self] in self?.openZoneEditor() },
+                onRequestAudioAccess: { [weak self] in self?.requestAudioAccessIfNeeded() })
             let hosting = NSHostingController(rootView: view)
             let window = NSWindow(contentViewController: hosting)
             window.title = loc("MacCam Settings")
@@ -246,6 +247,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
             if !granted { DispatchQueue.main.async { self?.showAccessDenied(.video) } }
         }
+        // Guard mode can't prompt on a locked screen, so resolve microphone
+        // access ahead of time when it's configured to run unattended.
+        if settings.guardMode, settings.audioEnabled,
+           AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
+            AVCaptureDevice.requestAccess(for: .audio) { _ in }
+        }
     }
 
     /// If audio is enabled, make sure microphone access has been requested before
@@ -260,20 +267,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             AVCaptureDevice.requestAccess(for: .audio) { _ in
                 DispatchQueue.main.async(execute: then)
             }
-        default:
+        case .denied, .restricted:
+            showAccessDenied(.audio)   // audio enabled but blocked — tell the user why
+            then()
+        default:  // .authorized
             then()
         }
     }
 
+    /// Called when the user turns "Record audio" on in Settings, so the
+    /// microphone prompt appears at the moment of intent (app is active).
+    func requestAudioAccessIfNeeded() {
+        ensureAudioAuthorized {}
+    }
+
     private func showAccessDenied(_ media: AVMediaType) {
+        let isAudio = media == .audio
         let alert = NSAlert()
-        alert.messageText = loc("Camera access denied")
-        alert.informativeText = loc("MacCam needs camera access to monitor for motion. "
-            + "Enable it in System Settings → Privacy & Security → Camera.")
+        alert.messageText = isAudio ? loc("Microphone access denied") : loc("Camera access denied")
+        alert.informativeText = isAudio
+            ? loc("MacCam needs microphone access to record audio. "
+                + "Enable it in System Settings → Privacy & Security → Microphone.")
+            : loc("MacCam needs camera access to monitor for motion. "
+                + "Enable it in System Settings → Privacy & Security → Camera.")
         alert.addButton(withTitle: loc("Open System Settings"))
         alert.addButton(withTitle: loc("Cancel"))
         if alert.runModal() == .alertFirstButtonReturn {
-            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera") {
+            let pane = isAudio ? "Privacy_Microphone" : "Privacy_Camera"
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") {
                 NSWorkspace.shared.open(url)
             }
         }

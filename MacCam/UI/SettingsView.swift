@@ -8,6 +8,7 @@ struct SettingsView: View {
     var onReconfigure: () -> Void
     var onLaunchAtLoginChange: (Bool) -> Void
     var onEditZones: () -> Void
+    var onRequestAudioAccess: () -> Void
 
     @State private var cameras: [(id: String, name: String)] = []
     @State private var microphones: [(id: String, name: String)] = []
@@ -60,7 +61,11 @@ struct SettingsView: View {
                 }
                 Toggle("Record audio", isOn: Binding(
                     get: { settings.audioEnabled },
-                    set: { settings.audioEnabled = $0; onReconfigure() }))
+                    set: {
+                        settings.audioEnabled = $0
+                        onReconfigure()
+                        if $0 { onRequestAudioAccess() }
+                    }))
                 if settings.audioEnabled {
                     Picker("Microphone", selection: Binding(
                         get: { settings.audioDeviceID ?? "" },
