@@ -6,15 +6,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Added
-- MIT license, contribution guide, code of conduct, and security policy.
-- English README, architecture document, and project icon.
-- Continuous integration (build + test + lint) and a tagged release pipeline
-  producing a DMG.
-- English/Russian localization of the interface and permission prompts.
-- About window showing version and project links.
-
 ## [1.0.0] - 2026-06-26
+
+First public release.
 
 ### Added
 - Menu-bar agent that captures the camera at the maximum available resolution.
@@ -27,7 +21,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   priority), and launch-at-login via `SMAppService`.
 - Discreet menu-bar mode: a neutral icon identical in every state, with a choice
   of glyphs.
+- English/Russian localization of the interface and permission prompts.
+- About window showing version and project links.
 - Fully offline operation: no network entitlements, no telemetry.
+- Project icon, MIT license, contribution guide, code of conduct, security
+  policy, English README, and architecture document.
+- Continuous integration (build + test + lint) and a tagged release pipeline
+  that publishes a DMG.
 
 [Unreleased]: https://github.com/polyackiy/MacCam/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/polyackiy/MacCam/releases/tag/v1.0.0
