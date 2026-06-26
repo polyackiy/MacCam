@@ -25,6 +25,16 @@ struct RecordingSettingsTab: View {
                 Stepper("Pre-roll: \(Int(settings.preRoll)) s",
                         value: $settings.preRoll, in: 1...10, step: 1)
             }
+            Picker("Recording trigger", selection: Binding(
+                get: { settings.triggerMode },
+                set: { settings.triggerMode = $0; context.onReconfigure() })) {
+                ForEach(TriggerMode.allCases) { Text(LocalizedStringKey($0.label)).tag($0) }
+            }
+            if !settings.audioEnabled && settings.triggerMode.usesVoice {
+                Text("Voice trigger needs \"Record audio\" enabled.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Toggle("Record audio", isOn: Binding(
                 get: { settings.audioEnabled },
                 set: {
@@ -39,10 +49,7 @@ struct RecordingSettingsTab: View {
                     Text("Automatic (built-in preferred)").tag("")
                     ForEach(microphones, id: \.id) { Text($0.name).tag($0.id) }
                 }
-                Toggle("Trigger recording on voice", isOn: Binding(
-                    get: { settings.voiceTriggerEnabled },
-                    set: { settings.voiceTriggerEnabled = $0 }))
-                if settings.voiceTriggerEnabled {
+                if settings.triggerMode.usesVoice {
                     VStack(alignment: .leading) {
                         Text("Voice sensitivity: \(settings.voiceSensitivity) (0 = strict, 4 = sensitive)")
                         Slider(value: Binding(
@@ -50,6 +57,11 @@ struct RecordingSettingsTab: View {
                             set: { settings.voiceSensitivity = Int($0.rounded()) }),
                                in: 0...4, step: 1)
                     }
+                }
+                if settings.triggerMode.allowsAudioOnly {
+                    Toggle("Record audio only (no video)", isOn: Binding(
+                        get: { settings.audioOnly },
+                        set: { settings.audioOnly = $0; context.onReconfigure() }))
                 }
             }
             Picker("Codec", selection: $settings.codec) {
