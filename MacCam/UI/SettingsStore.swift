@@ -78,6 +78,8 @@ struct AppSettings: Equatable {
     var autoCleanup: Bool
     var cleanupDays: Int
     var guardMode: Bool
+    var monitoringSchedule: WeeklySchedule
+    var recordingSchedule: WeeklySchedule
     var maxStorageGB: Double
     var minFreeSpaceGB: Double
     var diskLimitPolicy: DiskLimitPolicy
@@ -114,6 +116,22 @@ final class SettingsStore: ObservableObject {
         static let minFreeSpaceGB = "minFreeSpaceGB"
         static let diskLimitPolicy = "diskLimitPolicy"
         static let detectionMask = "detectionMask"
+        static let monitoringSchedule = "monitoringSchedule"
+        static let recordingSchedule = "recordingSchedule"
+    }
+
+    private static func encodeSchedule(_ schedule: WeeklySchedule) -> String {
+        guard let data = try? JSONEncoder().encode(schedule),
+              let string = String(data: data, encoding: .utf8) else { return "" }
+        return string
+    }
+
+    private static func decodeSchedule(_ string: String?) -> WeeklySchedule {
+        guard let string, let data = string.data(using: .utf8),
+              let schedule = try? JSONDecoder().decode(WeeklySchedule.self, from: data) else {
+            return WeeklySchedule()
+        }
+        return schedule
     }
 
     @Published var cameraID: String? { didSet { defaults.set(cameraID, forKey: Key.cameraID) } }
@@ -132,6 +150,12 @@ final class SettingsStore: ObservableObject {
     @Published var autoCleanup: Bool { didSet { defaults.set(autoCleanup, forKey: Key.autoCleanup) } }
     @Published var cleanupDays: Int { didSet { defaults.set(cleanupDays, forKey: Key.cleanupDays) } }
     @Published var guardMode: Bool { didSet { defaults.set(guardMode, forKey: Key.guardMode) } }
+    @Published var monitoringSchedule: WeeklySchedule {
+        didSet { defaults.set(Self.encodeSchedule(monitoringSchedule), forKey: Key.monitoringSchedule) }
+    }
+    @Published var recordingSchedule: WeeklySchedule {
+        didSet { defaults.set(Self.encodeSchedule(recordingSchedule), forKey: Key.recordingSchedule) }
+    }
     @Published var launchAtLogin: Bool { didSet { defaults.set(launchAtLogin, forKey: Key.launchAtLogin) } }
     @Published var menuBarStyle: MenuBarStyle { didSet { defaults.set(menuBarStyle.rawValue, forKey: Key.menuBarStyle) } }
     @Published var discreetIcon: DiscreetIcon { didSet { defaults.set(discreetIcon.rawValue, forKey: Key.discreetIcon) } }
@@ -182,6 +206,8 @@ final class SettingsStore: ObservableObject {
         autoCleanup = defaults.bool(forKey: Key.autoCleanup)
         cleanupDays = defaults.integer(forKey: Key.cleanupDays)
         guardMode = defaults.bool(forKey: Key.guardMode)
+        monitoringSchedule = Self.decodeSchedule(defaults.string(forKey: Key.monitoringSchedule))
+        recordingSchedule = Self.decodeSchedule(defaults.string(forKey: Key.recordingSchedule))
         launchAtLogin = defaults.bool(forKey: Key.launchAtLogin)
         menuBarStyle = MenuBarStyle(rawValue: defaults.string(forKey: Key.menuBarStyle) ?? "normal") ?? .normal
         discreetIcon = DiscreetIcon(rawValue: defaults.string(forKey: Key.discreetIcon) ?? "circle") ?? .circle
@@ -209,6 +235,8 @@ final class SettingsStore: ObservableObject {
             autoCleanup: autoCleanup,
             cleanupDays: cleanupDays,
             guardMode: guardMode,
+            monitoringSchedule: monitoringSchedule,
+            recordingSchedule: recordingSchedule,
             maxStorageGB: maxStorageGB,
             minFreeSpaceGB: minFreeSpaceGB,
             diskLimitPolicy: diskLimitPolicy,

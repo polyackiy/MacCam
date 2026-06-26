@@ -17,6 +17,7 @@ final class AudioRecordingTests: XCTestCase {
                     preRollEnabled: false, preRoll: 3, audioEnabled: true,
                     audioDeviceID: nil, codec: .hevc, quality: .medium, autoCleanup: false,
                     cleanupDays: 14, guardMode: false,
+                    monitoringSchedule: WeeklySchedule(), recordingSchedule: WeeklySchedule(),
                     maxStorageGB: 0, minFreeSpaceGB: 0,
                     diskLimitPolicy: .loop, detectionMask: "")
     }
