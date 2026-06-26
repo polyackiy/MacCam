@@ -183,8 +183,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         detector.requestUpdate(pixelDelta: snap.pixelDelta, threshold: snap.motionThreshold)
         detector.requestMask(MotionMask(encoded: snap.detectionMask))
         voiceDetector.requestUpdate(
-            enabled: snap.voiceTriggerEnabled && snap.audioEnabled,
+            enabled: snap.triggerMode.usesVoice && snap.audioEnabled,
             threshold: VoiceMath.confidenceThreshold(forSensitivity: snap.voiceSensitivity))
+        captureDelegate.setTriggerMode(snap.triggerMode)
+        captureDelegate.setAudioOnly(snap.effectiveAudioOnly)
     }
 
     private func updateMenuBarAppearance() {
