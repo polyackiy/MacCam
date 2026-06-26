@@ -134,10 +134,47 @@ final class RecordingController {
 
     func handle(audio sampleBuffer: CMSampleBuffer) {
         lock.lock(); defer { lock.unlock() }
-        guard isRecording, let input = audioInput, sessionStartPTS.isValid else { return }
+        guard isRecording else { return }
+        appendAudio(sampleBuffer)
+    }
+
+    /// Audio-only path: drive the FSM from audio buffers (no video), opening a
+    /// writer with a single audio track. Mirrors the video path's recording- and
+    /// storage-gates. Used only when the session has no camera (audio-only mode),
+    /// so it is mutually exclusive with `handle(video:motion:)`.
+    func handle(audioOnly sampleBuffer: CMSampleBuffer, trigger: Bool) {
         let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-        guard CMTimeCompare(pts, sessionStartPTS) >= 0, input.isReadyForMoreMediaData else { return }
-        input.append(sampleBuffer)
+        let now = CMTimeGetSeconds(pts)
+        guard now.isFinite else { return }
+
+        lock.lock(); defer { lock.unlock() }
+
+        let allowed = !recordingSchedule.enabled
+            || recordingSchedule.isActive(at: clock(), calendar: scheduleCalendar)
+        let effectiveTrigger = trigger && allowed
+
+        switch fsm.step(motion: effectiveTrigger, now: now) {
+        case .none:
+            break
+
+        case .startClip:
+            guard storageAllowsNewClip() else { break }
+            openWriter(dimensions: nil, audio: true, startPTS: pts)
+            appendAudio(sampleBuffer)
+
+        case .appendOnly:
+            appendAudio(sampleBuffer)
+
+        case .rotate:
+            finishWriter()
+            guard storageAllowsNewClip() else { break }
+            openWriter(dimensions: nil, audio: true, startPTS: pts)
+            appendAudio(sampleBuffer)
+
+        case .finishAndIdle:
+            appendAudio(sampleBuffer)
+            finishWriter()
+        }
     }
 
     /// Finalize any in-progress clip (e.g. when monitoring stops).
@@ -198,30 +235,40 @@ final class RecordingController {
         }
     }
 
+    /// Thin wrapper for the video path: derive W×H from a sample, then open a
+    /// writer with a video input and (optionally) an audio input.
     private func openWriter(dimensionsFrom sample: CMSampleBuffer, startPTS: CMTime) {
         guard let fmt = CMSampleBufferGetFormatDescription(sample) else { return }
         let dims = CMVideoFormatDescriptionGetDimensions(fmt)
-        let w = Int(dims.width), h = Int(dims.height)
-        let url = fileStore.nextClipURL(now: Date())
+        openWriter(dimensions: (Int(dims.width), Int(dims.height)),
+                   audio: settings.audioEnabled, startPTS: startPTS)
+    }
 
+    /// Open an `AVAssetWriter`. `dimensions != nil` adds a video input; `audio`
+    /// adds an AAC audio input. Audio-only clips pass `dimensions: nil`.
+    private func openWriter(dimensions: (Int, Int)?, audio: Bool, startPTS: CMTime) {
+        let url = fileStore.nextClipURL(now: Date())
         guard let w0 = try? AVAssetWriter(outputURL: url, fileType: .mov) else { return }
 
-        let codecType: AVVideoCodecType = settings.codec == .hevc ? .hevc : .h264
-        let videoSettings: [String: Any] = [
-            AVVideoCodecKey: codecType,
-            AVVideoWidthKey: w,
-            AVVideoHeightKey: h,
-            AVVideoCompressionPropertiesKey: [
-                AVVideoAverageBitRateKey: Bitrate.bps(quality: settings.quality, width: w, height: h),
-                AVVideoExpectedSourceFrameRateKey: settings.targetFPS,
-            ],
-        ]
-        let vInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
-        vInput.expectsMediaDataInRealTime = true
-        if w0.canAdd(vInput) { w0.add(vInput) }
+        var vInput: AVAssetWriterInput?
+        if let (w, h) = dimensions {
+            let codecType: AVVideoCodecType = settings.codec == .hevc ? .hevc : .h264
+            let videoSettings: [String: Any] = [
+                AVVideoCodecKey: codecType,
+                AVVideoWidthKey: w,
+                AVVideoHeightKey: h,
+                AVVideoCompressionPropertiesKey: [
+                    AVVideoAverageBitRateKey: Bitrate.bps(quality: settings.quality, width: w, height: h),
+                    AVVideoExpectedSourceFrameRateKey: settings.targetFPS,
+                ],
+            ]
+            let v = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
+            v.expectsMediaDataInRealTime = true
+            if w0.canAdd(v) { w0.add(v); vInput = v }
+        }
 
         var aInput: AVAssetWriterInput?
-        if settings.audioEnabled {
+        if audio {
             let audioSettings: [String: Any] = [
                 AVFormatIDKey: kAudioFormatMPEG4AAC,
                 AVNumberOfChannelsKey: 1,
@@ -248,6 +295,15 @@ final class RecordingController {
 
     private func appendVideo(_ sampleBuffer: CMSampleBuffer) {
         guard let input = videoInput, input.isReadyForMoreMediaData else { return }
+        input.append(sampleBuffer)
+    }
+
+    /// Append an audio buffer to the current clip if one is open and the buffer
+    /// is at or after the session start. Call with the lock held.
+    private func appendAudio(_ sampleBuffer: CMSampleBuffer) {
+        guard let input = audioInput, sessionStartPTS.isValid else { return }
+        let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        guard CMTimeCompare(pts, sessionStartPTS) >= 0, input.isReadyForMoreMediaData else { return }
         input.append(sampleBuffer)
     }
 
