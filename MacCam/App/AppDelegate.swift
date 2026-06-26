@@ -12,9 +12,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var captureDelegate: CaptureDelegate!
     private let menuBar = MenuBarController()
     private let lockMonitor = LockMonitor()
+    private let scheduler = Scheduler()
 
     private var monitoring = false
     private var manualOverride = false
+    private var screenLocked = false
     private var stoppedStatus: String?   // sticky menu reason shown while idle
     private var settingsWindow: NSWindow?
     private var aboutWindow: NSWindow?
@@ -37,6 +39,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBar.setLaunchAtLogin(LaunchAtLogin.isEnabled)
         updateMenuBarAppearance()
         lockMonitor.start()
+
+        scheduler.onMonitoringWindowChange = { [weak self] _ in self?.evaluateMonitoring() }
+        scheduler.update(monitoring: snap.monitoringSchedule, recording: snap.recordingSchedule)
+        scheduler.start()
 
         // Apply detector/recorder-affecting settings live while monitoring,
         // without rebuilding the capture session (camera/FPS/audio changes go
@@ -98,12 +104,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func wireGuard() {
         lockMonitor.onLock = { [weak self] in
-            guard let self, self.settings.guardMode, !self.monitoring else { return }
-            self.startMonitoring(manual: false)
+            guard let self else { return }
+            self.screenLocked = true
+            self.evaluateMonitoring()
         }
         lockMonitor.onUnlock = { [weak self] in
-            guard let self, self.monitoring, !self.manualOverride else { return }
-            self.stopMonitoring()
+            guard let self else { return }
+            self.screenLocked = false
+            self.evaluateMonitoring()
+        }
+    }
+
+    /// Auto-monitoring sources are guard mode and the monitoring schedule; a
+    /// manual Start overrides both and runs until manual Stop. Acts only on a
+    /// state change, so it is safe to call repeatedly.
+    private func evaluateMonitoring() {
+        if manualOverride { return }
+        let guardActive = settings.guardMode && screenLocked
+        let shouldMonitor = guardActive || scheduler.isMonitoringWindowActive()
+        if shouldMonitor && !monitoring {
+            startMonitoring(manual: false)
+        } else if !shouldMonitor && monitoring {
+            stopMonitoring()
         }
     }
 
@@ -129,6 +151,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         recorder.stop()
         monitoring = false
         updateMenu()
+        // No re-arm here: a manual Stop pauses until the next auto trigger (a
+        // schedule-window transition or screen lock), so the button always works.
     }
 
     private func reconfigureIfMonitoring() {
@@ -139,13 +163,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         camera.configure(settings: snap, delegate: captureDelegate)
     }
 
-    /// Push current settings into the detector and recorder without touching
-    /// the capture session. Cheap; safe to call on every settings edit.
+    /// Push current settings into the detector/recorder (when monitoring) and the
+    /// scheduler (always), then re-evaluate auto-monitoring. Cheap; safe to call
+    /// on every settings edit.
     private func applyLiveSettings() {
-        guard monitoring else { return }
         let snap = settings.snapshot()
-        applyToDetector(snap)
-        recorder.updateSettings(snap)
+        scheduler.update(monitoring: snap.monitoringSchedule, recording: snap.recordingSchedule)
+        if monitoring {
+            applyToDetector(snap)
+            recorder.updateSettings(snap)
+        }
+        evaluateMonitoring()
     }
 
     private func applyToDetector(_ snap: AppSettings) {
