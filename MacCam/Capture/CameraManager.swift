@@ -221,59 +221,55 @@ final class CameraManager: NSObject, ObservableObject {
 
     // MARK: Snapshot (for the zone editor)
 
+    private var snapshotSession: AVCaptureSession?
     private var snapshotGrabber: SnapshotGrabber?
 
-    /// Grab a single frame as a `CGImage` (for the detection-zone editor). Starts
-    /// the session briefly if it isn't already running. Returns `nil` on failure
-    /// or if no frame arrives within a short timeout. Never writes to disk.
+    /// Grab a single camera frame as a `CGImage` for the detection-zone editor.
+    /// Uses a dedicated short-lived session, so it works in any recording mode —
+    /// including audio-only, where the monitoring session carries no camera — and
+    /// never disturbs monitoring. Returns nil on failure or a ~3s timeout. Never
+    /// writes to disk.
     func captureSnapshot(_ completion: @escaping (CGImage?) -> Void) {
         sessionQueue.async {
-            // No camera in audio-only mode: there is no frame to grab, so return
-            // immediately instead of adding a video output to a camera-less
-            // session and stalling on the 3s timeout.
-            guard !self.settings.effectiveAudioOnly else {
+            guard self.snapshotSession == nil else {   // a grab is already in flight
                 DispatchQueue.main.async { completion(nil) }
                 return
             }
-            guard self.snapshotGrabber == nil else {   // a grab is already in flight
+            guard let device = self.pickDevice(self.settings.cameraID),
+                  let input = try? AVCaptureDeviceInput(device: device) else {
                 DispatchQueue.main.async { completion(nil) }
                 return
             }
-            let wasRunning = self.session.isRunning
-            if self.session.inputs.isEmpty {
-                self.reconfigure()
-            }
+            let session = AVCaptureSession()
+            session.beginConfiguration()
+            if session.canAddInput(input) { session.addInput(input) }
             let out = AVCaptureVideoDataOutput()
             out.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
-            var finished = false
-            let cleanup = {
-                self.session.beginConfiguration()
-                if self.session.outputs.contains(out) { self.session.removeOutput(out) }
-                self.session.commitConfiguration()
-                if !wasRunning { self.session.stopRunning() }
-                self.snapshotGrabber = nil
-            }
             let grabber = SnapshotGrabber { image in
-                self.sessionQueue.async {
-                    guard !finished else { return }
-                    finished = true
-                    cleanup()
-                    DispatchQueue.main.async { completion(image) }
-                }
+                self.sessionQueue.async { self.finishSnapshot(image, completion) }
             }
-            self.snapshotGrabber = grabber
             out.setSampleBufferDelegate(grabber, queue: DispatchQueue(label: "capture.snapshot"))
-            self.session.beginConfiguration()
-            if self.session.canAddOutput(out) { self.session.addOutput(out) }
-            self.session.commitConfiguration()
-            if !wasRunning { self.session.startRunning() }
+            if session.canAddOutput(out) { session.addOutput(out) }
+            session.commitConfiguration()
+
+            self.snapshotSession = session
+            self.snapshotGrabber = grabber
+            session.startRunning()
             self.sessionQueue.asyncAfter(deadline: .now() + 3) {
-                guard !finished else { return }
-                finished = true
-                cleanup()
-                DispatchQueue.main.async { completion(nil) }
+                self.finishSnapshot(nil, completion)
             }
         }
+    }
+
+    /// Deliver the snapshot result once and tear down the dedicated session. Runs
+    /// on `sessionQueue`; the grabber callback and the timeout both call it, but
+    /// only the first (while `snapshotSession` is non-nil) takes effect.
+    private func finishSnapshot(_ image: CGImage?, _ completion: @escaping (CGImage?) -> Void) {
+        guard let session = snapshotSession else { return }
+        snapshotSession = nil
+        snapshotGrabber = nil
+        session.stopRunning()
+        DispatchQueue.main.async { completion(image) }
     }
 
     // MARK: Disconnect / runtime errors

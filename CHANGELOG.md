@@ -29,6 +29,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   adjustable sensitivity.
 
 ### Changed
+- The detection-zone editor now reliably shows a camera snapshot to align zones
+  against — it grabs the frame from a dedicated capture session, so it works in
+  any recording mode (including audio-only) without disturbing monitoring, and
+  adds a button to refresh the preview.
 - Redesigned Settings as a sidebar window (Camera, Detection, Recording,
   Schedule, Storage, General) with grouped sections and inline help. Detection
   unifies the motion and voice triggers; audio capture moved to Camera; guard

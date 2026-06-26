@@ -1,19 +1,29 @@
 import SwiftUI
 
-/// Paints a 16×9 ignore mask over a camera snapshot. Ignored cells (red) are
-/// excluded from motion detection.
+/// Paints a 16×9 ignore mask over a live camera snapshot. Ignored cells (red) are
+/// excluded from motion detection. The snapshot can be refreshed so the user can
+/// align zones against the current scene.
 struct ZoneEditorView: View {
     @ObservedObject var settings: SettingsStore
     let camera: CameraManager
 
     @State private var mask = MotionMask()
     @State private var snapshot: CGImage?
+    @State private var loading = false
 
     var body: some View {
         VStack(spacing: 12) {
-            Text("Tap or drag cells to ignore (red). Motion there is not detected.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack {
+                Text("Tap or drag cells to ignore (red). Motion there is not detected.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button(action: loadSnapshot) {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .help("Refresh camera preview")
+                .disabled(loading)
+            }
 
             GeometryReader { geo in
                 ZStack {
@@ -22,6 +32,13 @@ struct ZoneEditorView: View {
                             .resizable()
                     } else {
                         Rectangle().fill(Color.black.opacity(0.85))
+                        if loading {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Text("Camera preview unavailable")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     grid(in: geo.size)
                 }
@@ -46,7 +63,15 @@ struct ZoneEditorView: View {
         .frame(width: 520, height: 380)
         .onAppear {
             mask = MotionMask(encoded: settings.detectionMask) ?? MotionMask()
-            camera.captureSnapshot { snapshot = $0 }
+            loadSnapshot()
+        }
+    }
+
+    private func loadSnapshot() {
+        loading = true
+        camera.captureSnapshot { image in
+            snapshot = image
+            loading = false
         }
     }
 

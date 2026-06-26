@@ -95,6 +95,8 @@
     "Keeps recording this long after the trigger stops; longer events split into clips of the max length." : { "localizations" : { "ru" : { "stringUnit" : { "state" : "translated", "value" : "Продолжает запись столько после остановки триггера; длинные события делятся на клипы максимальной длины." } } } },
     "A manual Start always takes priority over guard mode and schedules." : { "localizations" : { "ru" : { "stringUnit" : { "state" : "translated", "value" : "Ручной запуск всегда важнее режима охраны и расписаний." } } } },
     "Loop deletes the oldest clips to stay under the limit; Stop & notify halts recording instead." : { "localizations" : { "ru" : { "stringUnit" : { "state" : "translated", "value" : "«Цикл» удаляет старые клипы ради лимита; «Остановить и уведомить» вместо этого прекращает запись." } } } },
+    "Refresh camera preview" : { "localizations" : { "ru" : { "stringUnit" : { "state" : "translated", "value" : "Обновить изображение с камеры" } } } },
+    "Camera preview unavailable" : { "localizations" : { "ru" : { "stringUnit" : { "state" : "translated", "value" : "Изображение с камеры недоступно" } } } },
     "Version %@ (%@)" : { "localizations" : { "ru" : { "stringUnit" : { "state" : "translated", "value" : "Версия %@ (%@)" } } } }
   }
 }
