@@ -121,8 +121,8 @@ struct SettingsView: View {
 
     private func refreshUsage() {
         let usage = fileStore.folderUsage()
-        let usedGB = Double(usage.totalBytes) / 1_000_000_000
-        let freeGB = Double(fileStore.volumeFreeBytes()) / 1_000_000_000
+        let usedGB = StorageMath.bytesToGB(usage.totalBytes)
+        let freeGB = StorageMath.bytesToGB(fileStore.volumeFreeBytes())
         usageText = String(format: "%d clips · %.1f GB · %.1f GB free", usage.count, usedGB, freeGB)
     }
 

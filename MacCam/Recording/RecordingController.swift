@@ -1,8 +1,6 @@
 import Foundation
 import AVFoundation
 
-enum StorageDecision { case ok, stop }
-
 /// Drives `AVAssetWriter` from the recording state machine. Thread-safe append
 /// of interleaved video/audio sample buffers; handles pre-roll flush, seamless
 /// rotation at max clip length, and clean finalization.
@@ -25,12 +23,22 @@ final class RecordingController {
     private(set) var isRecording = false
     private(set) var lastClipName: String?
 
-    /// Consulted before opening a new clip. `.stop` aborts the open and fires
-    /// `onStorageStop`. `protecting` carries in-flight clip URLs (never deleted).
-    var storageGate: ((_ protecting: Set<URL>) -> StorageDecision)?
+    /// Fired (on the main queue) when the `.stop` disk policy aborts recording.
     var onStorageStop: (() -> Void)?
     private var currentURL: URL?
     private var finalizingURLs: Set<URL> = []
+
+    // Disk limits, set from AppSettings snapshots (main thread). Enforcement runs
+    // on `ioQueue`, never on the capture queue; the gate reads only the cached
+    // `overLimitStop` flag so the hot path stays free of disk I/O and of any
+    // SettingsStore access.
+    private var maxStorageBytes: Int64 = 0
+    private var minFreeBytes: Int64 = 0
+    private var diskPolicy: DiskLimitPolicy = .loop
+    private let ioQueue = DispatchQueue(label: "recording.io", qos: .utility)
+    private var overLimitStop = false
+    private var maintenanceScheduled = false
+    private var storageStopped = false
 
     init(fileStore: FileStore, settings: AppSettings) {
         self.fileStore = fileStore
@@ -40,6 +48,13 @@ final class RecordingController {
         self.fsm = RecordingFSM(minClip: settings.minClipLength,
                                 maxClip: settings.maxClipLength,
                                 cooldown: settings.postMotionCooldown)
+        applyDiskLimits(settings)
+    }
+
+    private func applyDiskLimits(_ s: AppSettings) {
+        maxStorageBytes = StorageMath.gbToBytes(s.maxStorageGB)
+        minFreeBytes = StorageMath.gbToBytes(s.minFreeSpaceGB)
+        diskPolicy = s.diskLimitPolicy
     }
 
     /// Apply new settings. Detector/threshold changes take effect immediately;
@@ -48,6 +63,7 @@ final class RecordingController {
     func updateSettings(_ s: AppSettings) {
         lock.lock(); defer { lock.unlock() }
         settings = s
+        applyDiskLimits(s)
         if s.preRoll != ringDuration {
             ringDuration = s.preRoll
             ring = RingBuffer<CMSampleBuffer>(duration: s.preRoll)
@@ -117,6 +133,8 @@ final class RecordingController {
         lock.lock(); defer { lock.unlock() }
         if isRecording { finishWriter() }
         ring.clear()
+        storageStopped = false
+        overLimitStop = false
         fsm = RecordingFSM(minClip: settings.minClipLength,
                            maxClip: settings.maxClipLength,
                            cooldown: settings.postMotionCooldown)
@@ -124,16 +142,43 @@ final class RecordingController {
 
     // MARK: Writer lifecycle (call with lock held)
 
-    /// Returns true if a new clip may be opened. On `.stop` fires `onStorageStop`.
+    /// Cheap gate (call with lock held, on the capture queue): consults only the
+    /// cached limit flag and kicks off background maintenance. No disk I/O here.
     private func storageAllowsNewClip() -> Bool {
-        guard let gate = storageGate else { return true }
-        var protectedURLs = finalizingURLs
-        if let current = currentURL { protectedURLs.insert(current) }
-        if gate(protectedURLs) == .stop {
-            DispatchQueue.main.async { [weak self] in self?.onStorageStop?() }
+        guard maxStorageBytes > 0 || minFreeBytes > 0 else { return true }
+        scheduleStorageMaintenance()
+        if diskPolicy == .stop && overLimitStop {
+            if !storageStopped {
+                storageStopped = true
+                DispatchQueue.main.async { [weak self] in self?.onStorageStop?() }
+            }
             return false
         }
         return true
+    }
+
+    /// Run folder enumeration / deletion off the capture queue. Coalesced so at
+    /// most one maintenance pass is in flight. Call with lock held.
+    private func scheduleStorageMaintenance() {
+        guard !maintenanceScheduled else { return }
+        maintenanceScheduled = true
+        let maxB = maxStorageBytes, minFree = minFreeBytes, policy = diskPolicy
+        var protectedURLs = finalizingURLs
+        if let current = currentURL { protectedURLs.insert(current) }
+        ioQueue.async { [weak self] in
+            guard let self else { return }
+            if policy == .loop {
+                self.fileStore.enforce(maxBytes: maxB, minFreeBytes: minFree, protecting: protectedURLs)
+            }
+            let total = self.fileStore.folderUsage().totalBytes
+            let free = self.fileStore.volumeFreeBytes()
+            let over = StorageMath.overLimit(totalBytes: total, freeBytes: free,
+                                             maxBytes: maxB, minFreeBytes: minFree)
+            self.lock.lock()
+            self.overLimitStop = over
+            self.maintenanceScheduled = false
+            self.lock.unlock()
+        }
     }
 
     private func openWriter(dimensionsFrom sample: CMSampleBuffer, startPTS: CMTime) {

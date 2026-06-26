@@ -156,6 +156,10 @@ final class CameraManager: NSObject, ObservableObject {
     /// or if no frame arrives within a short timeout. Never writes to disk.
     func captureSnapshot(_ completion: @escaping (CGImage?) -> Void) {
         sessionQueue.async {
+            guard self.snapshotGrabber == nil else {   // a grab is already in flight
+                DispatchQueue.main.async { completion(nil) }
+                return
+            }
             let wasRunning = self.session.isRunning
             if self.session.inputs.isEmpty {
                 self.reconfigure()
@@ -164,7 +168,9 @@ final class CameraManager: NSObject, ObservableObject {
             out.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
             var finished = false
             let cleanup = {
+                self.session.beginConfiguration()
                 if self.session.outputs.contains(out) { self.session.removeOutput(out) }
+                self.session.commitConfiguration()
                 if !wasRunning { self.session.stopRunning() }
                 self.snapshotGrabber = nil
             }
@@ -178,7 +184,9 @@ final class CameraManager: NSObject, ObservableObject {
             }
             self.snapshotGrabber = grabber
             out.setSampleBufferDelegate(grabber, queue: DispatchQueue(label: "capture.snapshot"))
+            self.session.beginConfiguration()
             if self.session.canAddOutput(out) { self.session.addOutput(out) }
+            self.session.commitConfiguration()
             if !wasRunning { self.session.startRunning() }
             self.sessionQueue.asyncAfter(deadline: .now() + 3) {
                 guard !finished else { return }

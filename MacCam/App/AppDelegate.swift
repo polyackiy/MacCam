@@ -77,25 +77,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func wireStorageGate() {
-        recorder.storageGate = { [weak self] protectedURLs in
-            guard let self else { return .ok }
-            let snap = self.settings.snapshot()
-            let maxB = StorageMath.gbToBytes(snap.maxStorageGB)
-            let minFree = StorageMath.gbToBytes(snap.minFreeSpaceGB)
-            if maxB == 0 && minFree == 0 { return .ok }
-            if snap.diskLimitPolicy == .loop {
-                self.fileStore.enforce(maxBytes: maxB, minFreeBytes: minFree, protecting: protectedURLs)
-                return .ok
-            }
-            let total = self.fileStore.folderUsage().totalBytes
-            let free = self.fileStore.volumeFreeBytes()
-            return StorageMath.overLimit(totalBytes: total, freeBytes: free,
-                                         maxBytes: maxB, minFreeBytes: minFree) ? .stop : .ok
-        }
+        // Disk-limit values reach the recorder via updateSettings (the recorder
+        // enforces them off the capture queue). Here we only react to a stop.
         recorder.onStorageStop = { [weak self] in
             guard let self else { return }
             self.stopMonitoring()
-            self.menuBar.setState(.off, statusText: loc("Stopped: disk limit reached"))
+            // stopMonitoring enqueues an "Idle" updateMenu via async; enqueue our
+            // explanatory status after it so it isn't clobbered.
+            DispatchQueue.main.async {
+                self.menuBar.setState(.off, statusText: loc("Stopped: disk limit reached"))
+            }
         }
     }
 
@@ -220,19 +211,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func openZoneEditor() {
-        if zoneWindow == nil {
-            let view = ZoneEditorView(settings: settings, camera: camera)
-            let hosting = NSHostingController(rootView: view)
-            let window = NSWindow(contentViewController: hosting)
-            window.title = loc("Detection Zones")
-            window.styleMask = [.titled, .closable]
-            window.isReleasedWhenClosed = false
-            zoneWindow = window
-        }
+        // Recreate each time so the editor reloads a fresh snapshot and the
+        // current mask (onAppear re-runs on a new view).
+        zoneWindow?.close()
+        let view = ZoneEditorView(settings: settings, camera: camera)
+        let hosting = NSHostingController(rootView: view)
+        let window = NSWindow(contentViewController: hosting)
+        window.title = loc("Detection Zones")
+        window.styleMask = [.titled, .closable]
+        window.isReleasedWhenClosed = false
+        zoneWindow = window
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
-        zoneWindow?.center()
-        zoneWindow?.makeKeyAndOrderFront(nil)
+        window.center()
+        window.makeKeyAndOrderFront(nil)
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

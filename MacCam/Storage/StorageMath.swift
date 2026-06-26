@@ -10,8 +10,13 @@ struct ClipFile: Equatable {
 /// within a size cap and/or free-space floor, oldest first, never touching a
 /// protected (in-flight) clip.
 enum StorageMath {
+    static let bytesPerGB: Double = 1_000_000_000
+
     /// Decimal gigabytes (1e9) → bytes. `0` stays `0` (meaning "no limit").
-    static func gbToBytes(_ gb: Double) -> Int64 { Int64((gb * 1_000_000_000).rounded()) }
+    static func gbToBytes(_ gb: Double) -> Int64 { Int64((gb * bytesPerGB).rounded()) }
+
+    /// Bytes → decimal gigabytes, for display.
+    static func bytesToGB(_ bytes: Int64) -> Double { Double(bytes) / bytesPerGB }
 
     /// True if current usage violates an enabled limit (`0` disables a limit).
     static func overLimit(totalBytes: Int64, freeBytes: Int64,
