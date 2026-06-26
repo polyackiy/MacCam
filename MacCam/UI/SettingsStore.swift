@@ -237,6 +237,12 @@ final class SettingsStore: ObservableObject {
         detectionMask = defaults.string(forKey: Key.detectionMask) ?? ""
     }
 
+    /// Whether the audio-only option currently applies: audio on AND a trigger
+    /// that permits it (Continuous/Voice). Shared by the Settings views so the
+    /// gate isn't re-spelled per view. `AppSettings.effectiveAudioOnly` is the
+    /// capture-pipeline equivalent (it additionally requires the `audioOnly` flag).
+    var audioOnlyAvailable: Bool { audioEnabled && triggerMode.allowsAudioOnly }
+
     func snapshot() -> AppSettings {
         AppSettings(
             cameraID: cameraID,

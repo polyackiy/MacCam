@@ -43,7 +43,7 @@ struct SettingsView: View {
             .navigationSplitViewColumnWidth(190)
         } detail: {
             detail(for: selection ?? .camera)
-                .navigationTitle(selection?.label ?? "Camera")
+                .navigationTitle((selection ?? .camera).label)
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 680, idealWidth: 700, minHeight: 540, idealHeight: 580)

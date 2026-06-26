@@ -16,7 +16,7 @@ struct CameraSettingsTab: View {
     }
 
     private var audioOnlyActive: Bool {
-        settings.audioOnly && settings.audioEnabled && settings.triggerMode.allowsAudioOnly
+        settings.audioOnly && settings.audioOnlyAvailable
     }
 
     var body: some View {

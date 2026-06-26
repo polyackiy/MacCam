@@ -32,10 +32,14 @@ struct RecordingSettingsTab: View {
                 }
             }
             Section("Format") {
-                if settings.audioEnabled && settings.triggerMode.allowsAudioOnly {
-                    Toggle("Record audio only (no video)", isOn: Binding(
-                        get: { settings.audioOnly },
-                        set: { settings.audioOnly = $0; context.onReconfigure() }))
+                Toggle("Record audio only (no video)", isOn: Binding(
+                    get: { settings.audioOnly },
+                    set: { settings.audioOnly = $0; context.onReconfigure() }))
+                    .disabled(!settings.audioOnlyAvailable)
+                if !settings.audioOnlyAvailable {
+                    Text("Available with the Continuous or Voice trigger and Record audio on.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 Picker("Codec", selection: $settings.codec) {
                     ForEach(VideoCodec.allCases) { Text($0.label).tag($0) }

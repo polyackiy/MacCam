@@ -22,7 +22,7 @@
     "Voice" : { "localizations" : { "ru" : { "stringUnit" : { "state" : "translated", "value" : "Голос" } } } },
     "Motion + Voice" : { "localizations" : { "ru" : { "stringUnit" : { "state" : "translated", "value" : "Движение + голос" } } } },
     "Record audio only (no video)" : { "localizations" : { "ru" : { "stringUnit" : { "state" : "translated", "value" : "Записывать только звук (без видео)" } } } },
-    "Voice trigger needs \"Record audio\" enabled." : { "localizations" : { "ru" : { "stringUnit" : { "state" : "translated", "value" : "Для триггера по голосу включите «Записывать звук»." } } } },
+    "Available with the Continuous or Voice trigger and Record audio on." : { "localizations" : { "ru" : { "stringUnit" : { "state" : "translated", "value" : "Доступно при триггере «Непрерывно» или «Голос» и включённой записи звука." } } } },
     "Audio only" : { "localizations" : { "ru" : { "stringUnit" : { "state" : "translated", "value" : "Только звук" } } } },
     "Tue" : { "localizations" : { "ru" : { "stringUnit" : { "state" : "translated", "value" : "Вт" } } } },
     "Wed" : { "localizations" : { "ru" : { "stringUnit" : { "state" : "translated", "value" : "Ср" } } } },
