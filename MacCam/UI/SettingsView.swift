@@ -7,9 +7,13 @@ struct SettingsView: View {
     let fileStore: FileStore
     var onReconfigure: () -> Void
     var onLaunchAtLoginChange: (Bool) -> Void
+    var onEditZones: () -> Void
+    var onRequestAudioAccess: () -> Void
 
     @State private var cameras: [(id: String, name: String)] = []
+    @State private var microphones: [(id: String, name: String)] = []
     @State private var folderPath: String = ""
+    @State private var usageText = "—"
 
     var body: some View {
         Form {
@@ -35,6 +39,12 @@ struct SettingsView: View {
                         set: { settings.sensitivity = Int($0.rounded()) }),
                            in: 0...4, step: 1)
                 }
+                Button("Edit Detection Zones…") { onEditZones() }
+                if let mask = MotionMask(encoded: settings.detectionMask), !mask.isEmpty {
+                    Text("\(mask.ignoredCount) zone cells ignored")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Section("Recording") {
@@ -51,7 +61,19 @@ struct SettingsView: View {
                 }
                 Toggle("Record audio", isOn: Binding(
                     get: { settings.audioEnabled },
-                    set: { settings.audioEnabled = $0; onReconfigure() }))
+                    set: {
+                        settings.audioEnabled = $0
+                        onReconfigure()
+                        if $0 { onRequestAudioAccess() }
+                    }))
+                if settings.audioEnabled {
+                    Picker("Microphone", selection: Binding(
+                        get: { settings.audioDeviceID ?? "" },
+                        set: { settings.audioDeviceID = $0.isEmpty ? nil : $0; onReconfigure() })) {
+                        Text("Automatic (built-in preferred)").tag("")
+                        ForEach(microphones, id: \.id) { Text($0.name).tag($0.id) }
+                    }
+                }
                 Picker("Codec", selection: $settings.codec) {
                     ForEach(VideoCodec.allCases) { Text($0.label).tag($0) }
                 }
@@ -63,10 +85,18 @@ struct SettingsView: View {
             Section("Storage") {
                 LabeledContent("Folder", value: folderPath)
                 Button("Choose Folder…") { chooseFolder() }
+                LabeledContent("Usage", value: usageText)
                 Toggle("Auto-delete old clips", isOn: $settings.autoCleanup)
                 if settings.autoCleanup {
                     Stepper("Delete after \(settings.cleanupDays) days",
                             value: $settings.cleanupDays, in: 1...365, step: 1)
+                }
+                Stepper("Max storage: \(Int(settings.maxStorageGB)) GB (0 = off)",
+                        value: $settings.maxStorageGB, in: 0...2000, step: 5)
+                Stepper("Keep free: \(Int(settings.minFreeSpaceGB)) GB (0 = off)",
+                        value: $settings.minFreeSpaceGB, in: 0...2000, step: 5)
+                Picker("When limit reached", selection: $settings.diskLimitPolicy) {
+                    ForEach(DiskLimitPolicy.allCases) { Text($0.label).tag($0) }
                 }
             }
 
@@ -98,8 +128,17 @@ struct SettingsView: View {
         .frame(width: 460, height: 700)
         .onAppear {
             cameras = camera.availableCameras().map { ($0.uniqueID, $0.localizedName) }
+            microphones = camera.availableMicrophones().map { ($0.uniqueID, $0.localizedName) }
             folderPath = fileStore.currentFolder().path
+            refreshUsage()
         }
+    }
+
+    private func refreshUsage() {
+        let usage = fileStore.folderUsage()
+        let usedGB = StorageMath.bytesToGB(usage.totalBytes)
+        let freeGB = StorageMath.bytesToGB(fileStore.volumeFreeBytes())
+        usageText = String(format: "%d clips · %.1f GB · %.1f GB free", usage.count, usedGB, freeGB)
     }
 
     private func chooseFolder() {

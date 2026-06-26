@@ -1,6 +1,8 @@
 import Foundation
 import AVFoundation
 import Combine
+import CoreImage
+import CoreAudio
 
 /// Adapts a real capture format to the testable `FormatInfo` protocol.
 struct AVFormatAdapter: FormatInfo {
@@ -84,19 +86,68 @@ final class CameraManager: NSObject, ObservableObject {
 
         audioOutput = nil
         if settings.audioEnabled {
-            if let mic = AVCaptureDevice.default(for: .audio),
-               let aInput = try? AVCaptureDeviceInput(device: mic),
-               session.canAddInput(aInput) {
+            if let aInput = makeAudioInput() {
                 session.addInput(aInput)
+                let aout = AVCaptureAudioDataOutput()
+                aout.setSampleBufferDelegate(delegate, queue: audioQueue)
+                if session.canAddOutput(aout) { session.addOutput(aout) }
+                audioOutput = aout
+                Log.capture.info("Audio input: \(aInput.device.localizedName, privacy: .public)")
+            } else {
+                Log.capture.error("Audio enabled but no usable microphone input was found")
             }
-            let aout = AVCaptureAudioDataOutput()
-            aout.setSampleBufferDelegate(delegate, queue: audioQueue)
-            if session.canAddOutput(aout) { session.addOutput(aout) }
-            audioOutput = aout
         }
 
         session.commitConfiguration()
         updateFormatString(device)
+    }
+
+    /// All audio capture devices, deduped and ordered with the built-in
+    /// microphone first (Bluetooth last). The system DiscoverySession audio
+    /// types are unreliable on macOS, so `devices(for:)` is included too.
+    func availableMicrophones() -> [AVCaptureDevice] {
+        var candidates: [AVCaptureDevice] = []
+        var seen = Set<String>()
+        func add(_ device: AVCaptureDevice?) {
+            guard let device, seen.insert(device.uniqueID).inserted else { return }
+            candidates.append(device)
+        }
+        if #available(macOS 14.0, *) {
+            AVCaptureDevice.DiscoverySession(deviceTypes: [.microphone, .external],
+                                             mediaType: .audio, position: .unspecified)
+                .devices.forEach(add)
+        }
+        AVCaptureDevice.devices(for: .audio).forEach(add)   // reliable on macOS; includes built-in
+        add(AVCaptureDevice.default(for: .audio))
+        return candidates.sorted { transportRank($0) < transportRank($1) }
+    }
+
+    /// Pick an audio device that yields a usable capture input. The user-selected
+    /// device (if any and present) is tried first; otherwise the built-in
+    /// microphone is preferred. The system default can be an un-capturable
+    /// Bluetooth/output device, so each candidate is tried until one produces a
+    /// valid input. Returns nil if none work.
+    private func makeAudioInput() -> AVCaptureDeviceInput? {
+        var ordered = availableMicrophones()
+        if let id = settings.audioDeviceID, !id.isEmpty,
+           let index = ordered.firstIndex(where: { $0.uniqueID == id }) {
+            ordered.insert(ordered.remove(at: index), at: 0)
+        }
+        for device in ordered {
+            if let input = try? AVCaptureDeviceInput(device: device), session.canAddInput(input) {
+                return input
+            }
+        }
+        return nil
+    }
+
+    /// Built-in microphone first, unknown second, Bluetooth last.
+    private func transportRank(_ device: AVCaptureDevice) -> Int {
+        switch UInt32(bitPattern: device.transportType) {
+        case kAudioDeviceTransportTypeBuiltIn: return 0
+        case kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE: return 2
+        default: return 1
+        }
     }
 
     private func applyMaxFormat(_ device: AVCaptureDevice, targetFPS: Int, minFPS: Int) {
@@ -146,6 +197,56 @@ final class CameraManager: NSObject, ObservableObject {
         }
     }
 
+    // MARK: Snapshot (for the zone editor)
+
+    private var snapshotGrabber: SnapshotGrabber?
+
+    /// Grab a single frame as a `CGImage` (for the detection-zone editor). Starts
+    /// the session briefly if it isn't already running. Returns `nil` on failure
+    /// or if no frame arrives within a short timeout. Never writes to disk.
+    func captureSnapshot(_ completion: @escaping (CGImage?) -> Void) {
+        sessionQueue.async {
+            guard self.snapshotGrabber == nil else {   // a grab is already in flight
+                DispatchQueue.main.async { completion(nil) }
+                return
+            }
+            let wasRunning = self.session.isRunning
+            if self.session.inputs.isEmpty {
+                self.reconfigure()
+            }
+            let out = AVCaptureVideoDataOutput()
+            out.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+            var finished = false
+            let cleanup = {
+                self.session.beginConfiguration()
+                if self.session.outputs.contains(out) { self.session.removeOutput(out) }
+                self.session.commitConfiguration()
+                if !wasRunning { self.session.stopRunning() }
+                self.snapshotGrabber = nil
+            }
+            let grabber = SnapshotGrabber { image in
+                self.sessionQueue.async {
+                    guard !finished else { return }
+                    finished = true
+                    cleanup()
+                    DispatchQueue.main.async { completion(image) }
+                }
+            }
+            self.snapshotGrabber = grabber
+            out.setSampleBufferDelegate(grabber, queue: DispatchQueue(label: "capture.snapshot"))
+            self.session.beginConfiguration()
+            if self.session.canAddOutput(out) { self.session.addOutput(out) }
+            self.session.commitConfiguration()
+            if !wasRunning { self.session.startRunning() }
+            self.sessionQueue.asyncAfter(deadline: .now() + 3) {
+                guard !finished else { return }
+                finished = true
+                cleanup()
+                DispatchQueue.main.async { completion(nil) }
+            }
+        }
+    }
+
     // MARK: Disconnect / runtime errors
 
     @objc private func handleRuntimeError(_ note: Notification) {
@@ -160,5 +261,23 @@ final class CameraManager: NSObject, ObservableObject {
     @objc private func deviceDisconnected(_ note: Notification) {
         guard let device = note.object as? AVCaptureDevice, device == currentDevice else { return }
         DispatchQueue.main.async { self.statusMessage = "Camera disconnected — waiting…" }
+    }
+}
+
+/// One-shot sample-buffer delegate that converts the first frame to a `CGImage`.
+private final class SnapshotGrabber: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
+    private let completion: (CGImage?) -> Void
+    private var done = false
+    private let context = CIContext()
+
+    init(completion: @escaping (CGImage?) -> Void) { self.completion = completion }
+
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer,
+                       from connection: AVCaptureConnection) {
+        guard !done, let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        done = true
+        let ci = CIImage(cvPixelBuffer: pb)
+        let cg = context.createCGImage(ci, from: ci.extent)
+        completion(cg)
     }
 }

@@ -21,17 +21,21 @@ final class MotionDetector {
     private let paramLock = NSLock()
     private var pendingPixelDelta: Int?
     private var pendingThreshold: Double?
+    private var pendingMask: MotionMask??   // outer = "has pending", inner = value (nil = no mask)
 
     private let count = analyzeWidth * analyzeHeight
     private var scaledBGRA: UnsafeMutableRawPointer
     private var currentGray: UnsafeMutablePointer<UInt8>
     private var previousGray: UnsafeMutablePointer<UInt8>
+    private var ignoreLookup: [Bool]?       // size `count`, true = ignore this pixel
+    private var activeCount: Int
     private var hasPrevious = false
     private var lastPTS: Double = -.infinity
 
     init(pixelDelta: Int, threshold: Double) {
         self.pixelDelta = pixelDelta
         self.threshold = threshold
+        activeCount = Self.analyzeWidth * Self.analyzeHeight
         scaledBGRA = .allocate(byteCount: count * 4, alignment: 16)
         currentGray = .allocate(capacity: count)
         previousGray = .allocate(capacity: count)
@@ -53,6 +57,14 @@ final class MotionDetector {
         paramLock.unlock()
     }
 
+    /// Thread-safe: stage a new ignore mask (or `nil`/empty for no masking),
+    /// applied on the analysis queue at the next frame.
+    func requestMask(_ mask: MotionMask?) {
+        paramLock.lock()
+        pendingMask = .some(mask)
+        paramLock.unlock()
+    }
+
     /// Pick up any staged tunables. Runs on the analysis queue. Changing the
     /// threshold/pixel delta does not invalidate the stored reference frame, so
     /// no reset is needed (and no frame is dropped on a settings change).
@@ -60,6 +72,17 @@ final class MotionDetector {
         paramLock.lock()
         if let pd = pendingPixelDelta { pixelDelta = pd; pendingPixelDelta = nil }
         if let th = pendingThreshold { threshold = th; pendingThreshold = nil }
+        if let boxed = pendingMask {
+            pendingMask = nil
+            if let mask = boxed, !mask.isEmpty {
+                let lookup = mask.pixelLookup(width: Self.analyzeWidth, height: Self.analyzeHeight)
+                ignoreLookup = lookup
+                activeCount = lookup.lazy.filter { !$0 }.count
+            } else {
+                ignoreLookup = nil
+                activeCount = count
+            }
+        }
         paramLock.unlock()
     }
 
@@ -105,10 +128,20 @@ final class MotionDetector {
 
         let thresh = min(255, max(0, pixelDelta))
         var changed = 0
-        for i in 0..<count where abs(Int(currentGray[i]) - Int(previousGray[i])) > thresh {
-            changed += 1
+        if let ignore = ignoreLookup {
+            guard activeCount > 0 else { return (false, 0) }
+            for i in 0..<count where !ignore[i]
+                && abs(Int(currentGray[i]) - Int(previousGray[i])) > thresh {
+                changed += 1
+            }
+            let fraction = Double(changed) / Double(activeCount)
+            return (fraction > threshold, fraction)
+        } else {
+            for i in 0..<count where abs(Int(currentGray[i]) - Int(previousGray[i])) > thresh {
+                changed += 1
+            }
+            let fraction = Double(changed) / Double(count)
+            return (fraction > threshold, fraction)
         }
-        let fraction = Double(changed) / Double(count)
-        return (fraction > threshold, fraction)
     }
 }

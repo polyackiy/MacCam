@@ -15,8 +15,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var monitoring = false
     private var manualOverride = false
+    private var stoppedStatus: String?   // sticky menu reason shown while idle
     private var settingsWindow: NSWindow?
     private var aboutWindow: NSWindow?
+    private var zoneWindow: NSWindow?
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -29,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         captureDelegate = CaptureDelegate(detector: detector, recorder: recorder)
 
         recorder.onStateChange = { [weak self] _, _ in self?.updateMenu() }
+        wireStorageGate()
         wireMenu()
         wireGuard()
         menuBar.setLaunchAtLogin(LaunchAtLogin.isEnabled)
@@ -60,7 +63,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func wireMenu() {
         menuBar.onToggleMonitoring = { [weak self] in
             guard let self else { return }
-            if self.monitoring { self.stopMonitoring() } else { self.startMonitoring(manual: true) }
+            if self.monitoring {
+                self.stopMonitoring()
+            } else {
+                // Ensure microphone access is requested via a user action (so the
+                // TCC prompt actually appears) before configuring audio capture.
+                self.ensureAudioAuthorized { self.startMonitoring(manual: true) }
+            }
         }
         menuBar.onOpenFolder = { [weak self] in self?.fileStore.openInFinder() }
         menuBar.onOpenSettings = { [weak self] in self?.openSettings() }
@@ -71,6 +80,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBar.onQuit = { [weak self] in
             self?.stopMonitoring()
             NSApp.terminate(nil)
+        }
+    }
+
+    private func wireStorageGate() {
+        // Disk-limit values reach the recorder via updateSettings (the recorder
+        // enforces them off the capture queue). Here we only react to a stop.
+        recorder.onStorageStop = { [weak self] in
+            guard let self else { return }
+            self.stopMonitoring()
+            // Sticky reason survives later updateMenu calls (e.g. a late
+            // finishWriting completion) until the next manual start.
+            self.stoppedStatus = loc("Stopped: disk limit reached")
+            self.updateMenu()
         }
     }
 
@@ -89,6 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func startMonitoring(manual: Bool) {
         if manual { manualOverride = true }
+        stoppedStatus = nil
         let snap = settings.snapshot()
         applyToDetector(snap)
         recorder.updateSettings(snap)
@@ -101,6 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func stopMonitoring() {
         manualOverride = false
+        stoppedStatus = nil
         camera.stop()
         recorder.stop()
         monitoring = false
@@ -127,6 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func applyToDetector(_ snap: AppSettings) {
         // Staged and applied on the capture queue to avoid racing analyze().
         detector.requestUpdate(pixelDelta: snap.pixelDelta, threshold: snap.motionThreshold)
+        detector.requestMask(MotionMask(encoded: snap.detectionMask))
     }
 
     private func updateMenuBarAppearance() {
@@ -144,7 +169,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func updateMenu() {
         DispatchQueue.main.async {
             if !self.monitoring {
-                self.menuBar.setState(.off, statusText: loc("Idle"))
+                self.menuBar.setState(.off, statusText: self.stoppedStatus ?? loc("Idle"))
             } else if self.recorder.isRecording {
                 self.menuBar.setState(.recording, statusText: loc("Recording…"))
             } else {
@@ -163,7 +188,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 camera: camera,
                 fileStore: fileStore,
                 onReconfigure: { [weak self] in self?.reconfigureIfMonitoring() },
-                onLaunchAtLoginChange: { [weak self] enabled in self?.setLaunchAtLogin(enabled) })
+                onLaunchAtLoginChange: { [weak self] enabled in self?.setLaunchAtLogin(enabled) },
+                onEditZones: { [weak self] in self?.openZoneEditor() },
+                onRequestAudioAccess: { [weak self] in self?.requestAudioAccessIfNeeded() })
             let hosting = NSHostingController(rootView: view)
             let window = NSWindow(contentViewController: hosting)
             window.title = loc("MacCam Settings")
@@ -192,6 +219,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         aboutWindow?.makeKeyAndOrderFront(nil)
     }
 
+    private func openZoneEditor() {
+        // Recreate each time so the editor reloads a fresh snapshot and the
+        // current mask (onAppear re-runs on a new view).
+        zoneWindow?.close()
+        let view = ZoneEditorView(settings: settings, camera: camera)
+        let hosting = NSHostingController(rootView: view)
+        let window = NSWindow(contentViewController: hosting)
+        window.title = loc("Detection Zones")
+        window.styleMask = [.titled, .closable]
+        window.isReleasedWhenClosed = false
+        zoneWindow = window
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+    }
+
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         openSettings()
         return true
@@ -203,20 +247,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
             if !granted { DispatchQueue.main.async { self?.showAccessDenied(.video) } }
         }
-        if settings.audioEnabled {
+        // Guard mode can't prompt on a locked screen, so resolve microphone
+        // access ahead of time when it's configured to run unattended.
+        if settings.guardMode, settings.audioEnabled,
+           AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
             AVCaptureDevice.requestAccess(for: .audio) { _ in }
         }
     }
 
+    /// If audio is enabled, make sure microphone access has been requested before
+    /// continuing. Activates the app so the system prompt is visible (this app is
+    /// a menu-bar accessory). Proceeds regardless of the result — video still
+    /// records if the user declines.
+    private func ensureAudioAuthorized(_ then: @escaping () -> Void) {
+        guard settings.audioEnabled else { then(); return }
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .notDetermined:
+            NSApp.activate(ignoringOtherApps: true)
+            AVCaptureDevice.requestAccess(for: .audio) { _ in
+                DispatchQueue.main.async(execute: then)
+            }
+        case .denied, .restricted:
+            showAccessDenied(.audio)   // audio enabled but blocked — tell the user why
+            then()
+        default:  // .authorized
+            then()
+        }
+    }
+
+    /// Called when the user turns "Record audio" on in Settings, so the
+    /// microphone prompt appears at the moment of intent (app is active).
+    func requestAudioAccessIfNeeded() {
+        ensureAudioAuthorized {}
+    }
+
     private func showAccessDenied(_ media: AVMediaType) {
+        let isAudio = media == .audio
         let alert = NSAlert()
-        alert.messageText = loc("Camera access denied")
-        alert.informativeText = loc("MacCam needs camera access to monitor for motion. "
-            + "Enable it in System Settings → Privacy & Security → Camera.")
+        alert.messageText = isAudio ? loc("Microphone access denied") : loc("Camera access denied")
+        alert.informativeText = isAudio
+            ? loc("MacCam needs microphone access to record audio. "
+                + "Enable it in System Settings → Privacy & Security → Microphone.")
+            : loc("MacCam needs camera access to monitor for motion. "
+                + "Enable it in System Settings → Privacy & Security → Camera.")
         alert.addButton(withTitle: loc("Open System Settings"))
         alert.addButton(withTitle: loc("Cancel"))
         if alert.runModal() == .alertFirstButtonReturn {
-            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera") {
+            let pane = isAudio ? "Privacy_Microphone" : "Privacy_Camera"
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") {
                 NSWorkspace.shared.open(url)
             }
         }

@@ -52,4 +52,46 @@ final class MotionDetectorTests: XCTestCase {
         _ = d.analyze(a, pts: 0)
         XCTAssertNil(d.analyze(a, pts: 0.01))  // < 1/12 s since last
     }
+
+    private func rightHalfIgnoredMask() -> MotionMask {
+        var mask = MotionMask()
+        for row in 0..<MotionMask.rows {
+            for col in 8..<MotionMask.cols { mask.set(col, row, true) }
+        }
+        return mask
+    }
+
+    func testMaskIgnoresChangingRegion() {
+        let d = MotionDetector(pixelDelta: 25, threshold: 0.02)
+        d.requestMask(rightHalfIgnoredMask())
+        let dark = makeBuffer(width: 640, height: 360) { _, _ in 30 }
+        let rightChanges = makeBuffer(width: 640, height: 360) { x, _ in x >= 320 ? 220 : 30 }
+        _ = d.analyze(dark, pts: 0)
+        let r = d.analyze(rightChanges, pts: 1)!
+        XCTAssertFalse(r.motion)               // all change is in the ignored half
+        XCTAssertLessThan(r.fraction, 0.01)
+    }
+
+    func testMaskKeepsActiveRegion() {
+        let d = MotionDetector(pixelDelta: 25, threshold: 0.02)
+        d.requestMask(rightHalfIgnoredMask())
+        let dark = makeBuffer(width: 640, height: 360) { _, _ in 30 }
+        let leftChanges = makeBuffer(width: 640, height: 360) { x, _ in x < 320 ? 220 : 30 }
+        _ = d.analyze(dark, pts: 0)
+        let r = d.analyze(leftChanges, pts: 1)!
+        XCTAssertTrue(r.motion)                // change is in the active half
+        XCTAssertGreaterThan(r.fraction, 0.3)
+    }
+
+    func testAllIgnoredYieldsNoMotion() {
+        let d = MotionDetector(pixelDelta: 25, threshold: 0.02)
+        var mask = MotionMask(); mask.invert()
+        d.requestMask(mask)
+        let dark = makeBuffer(width: 640, height: 360) { _, _ in 30 }
+        let bright = makeBuffer(width: 640, height: 360) { _, _ in 220 }
+        _ = d.analyze(dark, pts: 0)
+        let r = d.analyze(bright, pts: 1)!
+        XCTAssertFalse(r.motion)
+        XCTAssertEqual(r.fraction, 0, accuracy: 1e-9)
+    }
 }

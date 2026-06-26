@@ -55,6 +55,12 @@ enum DiscreetIcon: String, CaseIterable, Identifiable {
 
 /// Immutable snapshot of all settings, read atomically on the capture queue so
 /// UI edits never tear a frame's worth of configuration.
+enum DiskLimitPolicy: String, CaseIterable, Identifiable {
+    case loop, stop
+    var id: String { rawValue }
+    var label: String { self == .loop ? "Loop (delete oldest)" : "Stop & notify" }
+}
+
 struct AppSettings: Equatable {
     var cameraID: String?
     var targetFPS: Int
@@ -66,11 +72,16 @@ struct AppSettings: Equatable {
     var preRollEnabled: Bool
     var preRoll: Double
     var audioEnabled: Bool
+    var audioDeviceID: String?
     var codec: VideoCodec
     var quality: Quality
     var autoCleanup: Bool
     var cleanupDays: Int
     var guardMode: Bool
+    var maxStorageGB: Double
+    var minFreeSpaceGB: Double
+    var diskLimitPolicy: DiskLimitPolicy
+    var detectionMask: String
 
     var motionThreshold: Double { MotionMath.motionThreshold(forSensitivity: sensitivity) }
 }
@@ -90,6 +101,7 @@ final class SettingsStore: ObservableObject {
         static let preRollEnabled = "preRollEnabled"
         static let preRoll = "preRoll"
         static let audioEnabled = "audioEnabled"
+        static let audioDeviceID = "audioDeviceID"
         static let codec = "codec"
         static let quality = "quality"
         static let autoCleanup = "autoCleanup"
@@ -98,6 +110,10 @@ final class SettingsStore: ObservableObject {
         static let launchAtLogin = "launchAtLogin"
         static let menuBarStyle = "menuBarStyle"
         static let discreetIcon = "discreetIcon"
+        static let maxStorageGB = "maxStorageGB"
+        static let minFreeSpaceGB = "minFreeSpaceGB"
+        static let diskLimitPolicy = "diskLimitPolicy"
+        static let detectionMask = "detectionMask"
     }
 
     @Published var cameraID: String? { didSet { defaults.set(cameraID, forKey: Key.cameraID) } }
@@ -110,6 +126,7 @@ final class SettingsStore: ObservableObject {
     @Published var preRollEnabled: Bool { didSet { defaults.set(preRollEnabled, forKey: Key.preRollEnabled) } }
     @Published var preRoll: Double { didSet { defaults.set(preRoll, forKey: Key.preRoll) } }
     @Published var audioEnabled: Bool { didSet { defaults.set(audioEnabled, forKey: Key.audioEnabled) } }
+    @Published var audioDeviceID: String? { didSet { defaults.set(audioDeviceID, forKey: Key.audioDeviceID) } }
     @Published var codec: VideoCodec { didSet { defaults.set(codec.rawValue, forKey: Key.codec) } }
     @Published var quality: Quality { didSet { defaults.set(quality.rawValue, forKey: Key.quality) } }
     @Published var autoCleanup: Bool { didSet { defaults.set(autoCleanup, forKey: Key.autoCleanup) } }
@@ -118,6 +135,10 @@ final class SettingsStore: ObservableObject {
     @Published var launchAtLogin: Bool { didSet { defaults.set(launchAtLogin, forKey: Key.launchAtLogin) } }
     @Published var menuBarStyle: MenuBarStyle { didSet { defaults.set(menuBarStyle.rawValue, forKey: Key.menuBarStyle) } }
     @Published var discreetIcon: DiscreetIcon { didSet { defaults.set(discreetIcon.rawValue, forKey: Key.discreetIcon) } }
+    @Published var maxStorageGB: Double { didSet { defaults.set(maxStorageGB, forKey: Key.maxStorageGB) } }
+    @Published var minFreeSpaceGB: Double { didSet { defaults.set(minFreeSpaceGB, forKey: Key.minFreeSpaceGB) } }
+    @Published var diskLimitPolicy: DiskLimitPolicy { didSet { defaults.set(diskLimitPolicy.rawValue, forKey: Key.diskLimitPolicy) } }
+    @Published var detectionMask: String { didSet { defaults.set(detectionMask, forKey: Key.detectionMask) } }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -139,6 +160,10 @@ final class SettingsStore: ObservableObject {
             Key.launchAtLogin: false,
             Key.menuBarStyle: MenuBarStyle.normal.rawValue,
             Key.discreetIcon: DiscreetIcon.circle.rawValue,
+            Key.maxStorageGB: 0.0,
+            Key.minFreeSpaceGB: 0.0,
+            Key.diskLimitPolicy: DiskLimitPolicy.loop.rawValue,
+            Key.detectionMask: "",
         ])
 
         cameraID = defaults.string(forKey: Key.cameraID)
@@ -151,6 +176,7 @@ final class SettingsStore: ObservableObject {
         preRollEnabled = defaults.bool(forKey: Key.preRollEnabled)
         preRoll = defaults.double(forKey: Key.preRoll)
         audioEnabled = defaults.bool(forKey: Key.audioEnabled)
+        audioDeviceID = defaults.string(forKey: Key.audioDeviceID)
         codec = VideoCodec(rawValue: defaults.string(forKey: Key.codec) ?? "hevc") ?? .hevc
         quality = Quality(rawValue: defaults.string(forKey: Key.quality) ?? "medium") ?? .medium
         autoCleanup = defaults.bool(forKey: Key.autoCleanup)
@@ -159,6 +185,10 @@ final class SettingsStore: ObservableObject {
         launchAtLogin = defaults.bool(forKey: Key.launchAtLogin)
         menuBarStyle = MenuBarStyle(rawValue: defaults.string(forKey: Key.menuBarStyle) ?? "normal") ?? .normal
         discreetIcon = DiscreetIcon(rawValue: defaults.string(forKey: Key.discreetIcon) ?? "circle") ?? .circle
+        maxStorageGB = defaults.double(forKey: Key.maxStorageGB)
+        minFreeSpaceGB = defaults.double(forKey: Key.minFreeSpaceGB)
+        diskLimitPolicy = DiskLimitPolicy(rawValue: defaults.string(forKey: Key.diskLimitPolicy) ?? "loop") ?? .loop
+        detectionMask = defaults.string(forKey: Key.detectionMask) ?? ""
     }
 
     func snapshot() -> AppSettings {
@@ -173,10 +203,15 @@ final class SettingsStore: ObservableObject {
             preRollEnabled: preRollEnabled,
             preRoll: preRoll,
             audioEnabled: audioEnabled,
+            audioDeviceID: audioDeviceID,
             codec: codec,
             quality: quality,
             autoCleanup: autoCleanup,
             cleanupDays: cleanupDays,
-            guardMode: guardMode)
+            guardMode: guardMode,
+            maxStorageGB: maxStorageGB,
+            minFreeSpaceGB: minFreeSpaceGB,
+            diskLimitPolicy: diskLimitPolicy,
+            detectionMask: detectionMask)
     }
 }
