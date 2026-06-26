@@ -25,17 +25,28 @@ A free, local-only alternative to subscription surveillance apps.
 - 🎥 **Maximum resolution, automatically** — probes the device and picks the
   largest available format, so the built-in FaceTime camera records at 1080p and
   external USB / Continuity cameras up to 4K with no configuration.
-- 🏃 **Fast motion detection** — downscaled `vImage` frame differencing, throttled
-  to ~12 Hz; a few percent CPU at idle.
-- 🔴 **Motion-triggered recording** — HEVC (or H.264) via the hardware encoder,
-  cooldown after motion, seamless clip rotation, optional pre-roll.
-- 🔒 **Private by design** — no network entitlements, no uploads, no telemetry.
-  Clips stay in a folder you choose (local disk, external drive, or NAS).
+- 🎯 **Flexible triggers** — record **continuously**, on **motion** (downscaled
+  `vImage` frame differencing, throttled to ~12 Hz), on **voice** (on-device
+  speech detection), or on motion *and* voice. Continuous skips motion analysis
+  to save CPU.
+- 🔴 **Efficient recording** — HEVC (or H.264) via the hardware encoder, with a
+  cooldown after the trigger, seamless clip rotation, and optional pre-roll.
+- 🔇 **Audio options** — record sound alongside video, choose the microphone, or
+  record **audio only** (no video, saved as `.m4a`) when the camera isn't needed.
+- 🗺️ **Detection zones** — paint a 16×9 ignore mask over a **live camera preview**
+  to skip busy areas (a swaying tree, a street) and cut false triggers.
+- ⏰ **Weekly schedules** — auto start/stop monitoring within a time window, and
+  gate recording to its own window (per-weekday, overnight supported). A manual
+  Start always takes priority.
+- 💽 **Disk-space limits** — cap total clip size and/or keep a minimum amount of
+  free space, then **loop** (delete oldest) or **stop & notify**.
 - 🛡️ **Guard mode** — start automatically when the screen locks, stop on unlock.
 - 🫥 **Discreet mode** — a neutral menu-bar icon that looks identical whether
   idle, monitoring, or recording, so onlookers can't tell the camera is active.
-- 🚀 **Launch at login**, configurable sensitivity, clip lengths, FPS, quality,
-  auto-cleanup of old clips, and optional audio.
+- 🔒 **Private by design** — no network entitlements, no uploads, no telemetry.
+  Clips stay in a folder you choose (local disk, external drive, or NAS).
+- 🌍 **English & Russian** interface, **launch at login**, and auto-cleanup of
+  old clips.
 
 > **Note on privacy indicators:** while the camera is active, macOS shows its own
 > green "camera in use" indicator and the hardware LED lights up. This is a system
@@ -76,11 +87,16 @@ access when prompted.
 ## Usage
 
 1. Click the MacCam menu-bar icon → **Start Monitoring**.
-2. Motion in frame starts a clip; it stops after the configured cooldown.
+2. When the trigger fires (motion, voice, or always — per your settings), a clip
+   records and stops after the cooldown.
 3. Clips are saved to `~/Movies/MacCam/` by default (configurable).
-4. **Settings…** lets you tune camera, sensitivity, clip length, cooldown,
-   pre-roll, audio, FPS, codec/quality, destination folder, auto-cleanup,
-   guard mode, launch-at-login, and the menu-bar icon style.
+4. **Settings…** opens a sidebar window with grouped sections:
+   - **Camera** — device, resolution, FPS, audio capture + microphone
+   - **Detection** — trigger mode, motion sensitivity + zones, voice sensitivity
+   - **Recording** — clip length, cooldown, pre-roll, audio-only, codec/quality
+   - **Schedule** — guard mode and the weekly monitoring / recording windows
+   - **Storage** — destination folder, usage, auto-cleanup, disk limits
+   - **General** — menu-bar icon style and launch-at-login
 5. **Open Clips Folder…** reveals your recordings.
 
 ## Build & test
@@ -93,11 +109,13 @@ make lint      # SwiftLint (if installed)
 
 ## Architecture
 
-A single `AVCaptureSession` feeds a delegate that runs motion detection and a
-recording state machine driving `AVAssetWriter`. Pure logic (sensitivity
-mapping, format selection, motion diff, ring buffer, recording FSM, file naming)
-is isolated into testable seams; AVFoundation/AppKit glue is verified by build +
-an end-to-end recording integration test.
+A single `AVCaptureSession` feeds a delegate that computes the recording trigger
+(motion via `vImage`, and/or voice via on-device `SoundAnalysis`) and drives a
+recording state machine writing `AVAssetWriter`. Pure logic (sensitivity and
+voice-threshold mapping, format selection, motion diff, trigger mode, ring
+buffer, recording FSM, schedules, storage math, file naming) is isolated into
+testable seams; AVFoundation/AppKit glue is verified by build + an end-to-end
+recording integration test.
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design.
 
