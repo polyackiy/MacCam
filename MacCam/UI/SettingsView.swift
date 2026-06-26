@@ -80,7 +80,8 @@ struct SettingsView: View {
                             Label(icon.label, systemImage: icon.symbolName).tag(icon)
                         }
                     }
-                    Text("In discreet mode the icon looks the same whether idle, monitoring, or recording — only this menu reveals the real status.")
+                    Text("In discreet mode the icon looks the same whether idle, "
+                        + "monitoring, or recording — only this menu reveals the real status.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

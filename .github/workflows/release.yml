@@ -1,0 +1,25 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & publish DMG
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build DMG
+        run: make dmg
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" dist/*.dmg \
+            --title "MacCam $TAG" \
+            --generate-notes
