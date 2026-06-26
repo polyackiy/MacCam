@@ -211,7 +211,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func openSettings() {
         if settingsWindow == nil {
-            let view = SettingsView(
+            let context = SettingsContext(
                 settings: settings,
                 camera: camera,
                 fileStore: fileStore,
@@ -219,7 +219,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 onLaunchAtLoginChange: { [weak self] enabled in self?.setLaunchAtLogin(enabled) },
                 onEditZones: { [weak self] in self?.openZoneEditor() },
                 onRequestAudioAccess: { [weak self] in self?.requestAudioAccessIfNeeded() })
-            let hosting = NSHostingController(rootView: view)
+            let hosting = NSHostingController(rootView: SettingsView(context: context))
             let window = NSWindow(contentViewController: hosting)
             window.title = loc("MacCam Settings")
             window.styleMask = [.titled, .closable, .miniaturizable]
