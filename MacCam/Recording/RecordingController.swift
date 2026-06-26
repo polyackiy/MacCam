@@ -1,6 +1,8 @@
 import Foundation
 import AVFoundation
 
+enum StorageDecision { case ok, stop }
+
 /// Drives `AVAssetWriter` from the recording state machine. Thread-safe append
 /// of interleaved video/audio sample buffers; handles pre-roll flush, seamless
 /// rotation at max clip length, and clean finalization.
@@ -22,6 +24,13 @@ final class RecordingController {
     var onStateChange: ((Bool, String?) -> Void)?
     private(set) var isRecording = false
     private(set) var lastClipName: String?
+
+    /// Consulted before opening a new clip. `.stop` aborts the open and fires
+    /// `onStorageStop`. `protecting` carries in-flight clip URLs (never deleted).
+    var storageGate: ((_ protecting: Set<URL>) -> StorageDecision)?
+    var onStorageStop: (() -> Void)?
+    private var currentURL: URL?
+    private var finalizingURLs: Set<URL> = []
 
     init(fileStore: FileStore, settings: AppSettings) {
         self.fileStore = fileStore
@@ -68,6 +77,7 @@ final class RecordingController {
             break
 
         case .startClip:
+            guard storageAllowsNewClip() else { break }
             if settings.preRollEnabled {
                 let frames = ring.snapshot()
                 let start = frames.first.map { CMSampleBufferGetPresentationTimeStamp($0) } ?? pts
@@ -84,6 +94,7 @@ final class RecordingController {
 
         case .rotate:
             finishWriter()
+            guard storageAllowsNewClip() else { break }
             openWriter(dimensionsFrom: sampleBuffer, startPTS: pts)
             appendVideo(sampleBuffer)
 
@@ -112,6 +123,18 @@ final class RecordingController {
     }
 
     // MARK: Writer lifecycle (call with lock held)
+
+    /// Returns true if a new clip may be opened. On `.stop` fires `onStorageStop`.
+    private func storageAllowsNewClip() -> Bool {
+        guard let gate = storageGate else { return true }
+        var protectedURLs = finalizingURLs
+        if let current = currentURL { protectedURLs.insert(current) }
+        if gate(protectedURLs) == .stop {
+            DispatchQueue.main.async { [weak self] in self?.onStorageStop?() }
+            return false
+        }
+        return true
+    }
 
     private func openWriter(dimensionsFrom sample: CMSampleBuffer, startPTS: CMTime) {
         guard let fmt = CMSampleBufferGetFormatDescription(sample) else { return }
@@ -156,6 +179,7 @@ final class RecordingController {
         audioInput = aInput
         sessionStartPTS = startPTS
         currentClipName = url.lastPathComponent
+        currentURL = url
         isRecording = true
         notifyState()
     }
@@ -168,12 +192,15 @@ final class RecordingController {
     private func finishWriter() {
         guard let w = writer else { return }
         let name = currentClipName
+        let finishedURL = currentURL
+        if let url = finishedURL { finalizingURLs.insert(url) }
         videoInput?.markAsFinished()
         audioInput?.markAsFinished()
         w.finishWriting { [weak self] in
             guard let self else { return }
             self.lock.lock()
             self.lastClipName = name
+            if let url = finishedURL { self.finalizingURLs.remove(url) }
             self.lock.unlock()
             DispatchQueue.main.async { self.onStateChange?(self.isRecording, name) }
         }
@@ -182,6 +209,7 @@ final class RecordingController {
         audioInput = nil
         sessionStartPTS = .invalid
         currentClipName = nil
+        currentURL = nil
         isRecording = false
         notifyState()
     }

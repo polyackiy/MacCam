@@ -100,4 +100,48 @@ final class FileStore {
     func openInFinder() {
         NSWorkspace.shared.activateFileViewerSelecting([currentFolder()])
     }
+
+    // MARK: Disk usage / limits
+
+    func clipFiles() -> [ClipFile] {
+        let folder = currentFolder()
+        let keys: [URLResourceKey] = [.contentModificationDateKey, .fileSizeKey]
+        guard let items = try? FileManager.default.contentsOfDirectory(
+            at: folder, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles]) else { return [] }
+        return items.filter { $0.pathExtension.lowercased() == "mov" }.compactMap { url in
+            let v = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+            guard let date = v?.contentModificationDate, let size = v?.fileSize else { return nil }
+            return ClipFile(url: url, size: Int64(size), modified: date)
+        }
+    }
+
+    func folderUsage() -> (count: Int, totalBytes: Int64) {
+        let files = clipFiles()
+        return (files.count, files.reduce(0) { $0 + $1.size })
+    }
+
+    func volumeFreeBytes() -> Int64 {
+        let url = currentFolder()
+        let v = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        return Int64(v?.volumeAvailableCapacityForImportantUsage ?? 0)
+    }
+
+    /// Delete oldest clips to satisfy the limits; returns whether usage is within
+    /// limits afterward.
+    @discardableResult
+    func enforce(maxBytes: Int64, minFreeBytes: Int64, protecting: Set<URL>) -> Bool {
+        let files = clipFiles()
+        let total = files.reduce(0) { $0 + $1.size }
+        let free = volumeFreeBytes()
+        let toDelete = StorageMath.clipsToDelete(
+            files: files, totalBytes: total, freeBytes: free,
+            maxBytes: maxBytes, minFreeBytes: minFreeBytes, protecting: protecting)
+        var freed: Int64 = 0
+        let sizeByURL = Dictionary(uniqueKeysWithValues: files.map { ($0.url, $0.size) })
+        for url in toDelete where (try? FileManager.default.removeItem(at: url)) != nil {
+            freed += sizeByURL[url] ?? 0
+        }
+        return !StorageMath.overLimit(totalBytes: total - freed, freeBytes: free + freed,
+                                      maxBytes: maxBytes, minFreeBytes: minFreeBytes)
+    }
 }
