@@ -9,14 +9,20 @@ final class FileStore {
     private let bookmarkKey = "folderBookmark"
     private var resolvedFolder: URL?
     private var isAccessingScoped = false
+    private let defaultOverride: URL?
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, defaultOverride: URL? = nil) {
         self.defaults = defaults
+        self.defaultOverride = defaultOverride
     }
 
     // MARK: Folder resolution
 
     func defaultFolder() -> URL {
+        if let defaultOverride {
+            try? FileManager.default.createDirectory(at: defaultOverride, withIntermediateDirectories: true)
+            return defaultOverride
+        }
         let movies = (try? FileManager.default.url(
             for: .moviesDirectory, in: .userDomainMask, appropriateFor: nil, create: true))
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Movies")
