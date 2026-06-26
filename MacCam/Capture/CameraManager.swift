@@ -1,7 +1,6 @@
 import Foundation
 import AVFoundation
 import Combine
-import CoreImage
 import CoreAudio
 
 /// Adapts a real capture format to the testable `FormatInfo` protocol.
@@ -229,6 +228,14 @@ final class CameraManager: NSObject, ObservableObject {
     /// camera; otherwise spins up a dedicated camera-only session (the camera is
     /// free when idle or in audio-only mode). The dedicated session has no data
     /// output, so previewing never starts recording. Delivers nil if no camera.
+    ///
+    /// Known limitations (both require toggling monitoring while the editor stays
+    /// open, so they're rare and left unhandled): a reused monitoring session that
+    /// later stops or reconfigures to audio-only leaves the preview frozen until
+    /// the editor is reopened; and in the brief window where monitoring has been
+    /// configured but `isRunning` is not yet true, this falls to the dedicated
+    /// branch — harmless because both run on `sessionQueue`, but it could briefly
+    /// open a second session as monitoring starts.
     func startPreview(_ completion: @escaping (AVCaptureSession?) -> Void) {
         sessionQueue.async {
             let hasCamera = self.session.inputs.contains {
