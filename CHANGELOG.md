@@ -20,9 +20,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Weekly schedules: auto start/stop monitoring within a time window, and gate
   recording to a time window (per-weekday, overnight windows supported). Manual
   Start always takes priority.
-- Voice-activated recording: start a clip when human speech is detected
-  (on-device SoundAnalysis), as an additional trigger alongside motion. Requires
-  audio recording enabled; adjustable sensitivity.
+- Recording trigger modes: choose Continuous (always record), Motion, Voice, or
+  Motion + Voice in Settings — replacing the standalone voice toggle. Continuous
+  and Voice can additionally record audio only (camera off) for a single-track
+  audio clip.
+- Voice-activated recording: detect human speech on-device (SoundAnalysis) as a
+  recording trigger, selectable via the trigger mode. Requires audio enabled;
+  adjustable sensitivity.
 
 ### Fixed
 - Audio was never recorded. The hardened runtime requires the
