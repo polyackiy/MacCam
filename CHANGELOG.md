@@ -29,9 +29,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   adjustable sensitivity.
 
 ### Changed
+- Redesigned Settings as a sidebar window (Camera, Detection, Recording,
+  Schedule, Storage, General) with grouped sections and inline help. Detection
+  unifies the motion and voice triggers; audio capture moved to Camera; guard
+  mode moved to Schedule; appearance and system options merged into General.
 - Tidier menu-bar dropdown: the current state is now shown as a clear section
   header (instead of a stray greyed line), and the command items are uniformly
-  aligned.
+  aligned with consistent icons.
 
 ### Fixed
 - Audio was never recorded. The hardened runtime requires the

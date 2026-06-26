@@ -235,7 +235,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let hosting = NSHostingController(rootView: SettingsView(context: context))
             let window = NSWindow(contentViewController: hosting)
             window.title = loc("MacCam Settings")
-            window.styleMask = [.titled, .closable, .miniaturizable]
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.isReleasedWhenClosed = false
             settingsWindow = window
         }

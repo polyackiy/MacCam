@@ -44,28 +44,45 @@ final class MenuBarController: NSObject {
 
         let folder = NSMenuItem(title: loc("Open Clips Folder…"), action: #selector(openFolder), keyEquivalent: "")
         folder.target = self
+        folder.image = menuIcon("folder")
         menu.addItem(folder)
 
         let settings = NSMenuItem(title: loc("Settings…"), action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
+        settings.image = menuIcon("gearshape")
         menu.addItem(settings)
 
         launchItem.title = loc("Launch at Login")
         launchItem.target = self
         launchItem.action = #selector(toggleLaunch)
+        launchItem.image = menuIcon("power")
         menu.addItem(launchItem)
 
         menu.addItem(.separator())
 
         let about = NSMenuItem(title: loc("About MacCam"), action: #selector(openAbout), keyEquivalent: "")
         about.target = self
+        about.image = menuIcon("info.circle")
         menu.addItem(about)
 
         let quit = NSMenuItem(title: loc("Quit MacCam"), action: #selector(quit), keyEquivalent: "q")
         quit.target = self
+        quit.image = menuIcon("xmark.circle")
         menu.addItem(quit)
 
         statusItem.menu = menu
+    }
+
+    /// A consistently-sized template icon for a menu command. Every command item
+    /// gets one so the icon column is uniform — macOS 26 reserves that column and
+    /// auto-decorates some items (e.g. Settings) anyway, so supplying our own
+    /// keeps the whole menu aligned and visually consistent.
+    private func menuIcon(_ name: String) -> NSImage? {
+        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
+        let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(config)
+        image?.isTemplate = true
+        return image
     }
 
     func setState(_ state: State, statusText: String) {
@@ -85,6 +102,7 @@ final class MenuBarController: NSObject {
 
     private func render() {
         toggleItem.title = (state == .off) ? loc("Start Monitoring") : loc("Stop Monitoring")
+        toggleItem.image = menuIcon(state == .off ? "play.fill" : "stop.fill")
         applyStatus(statusText)
         blinkTimer?.invalidate()
         blinkTimer = nil
