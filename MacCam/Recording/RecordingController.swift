@@ -251,8 +251,12 @@ final class RecordingController {
     /// Open an `AVAssetWriter`. `dimensions != nil` adds a video input; `audio`
     /// adds an AAC audio input. Audio-only clips pass `dimensions: nil`.
     private func openWriter(dimensions: (Int, Int)?, audio: Bool, startPTS: CMTime) {
-        let url = fileStore.nextClipURL(now: clock())
-        guard let w0 = try? AVAssetWriter(outputURL: url, fileType: .mov) else { return }
+        // No video track ⇒ audio-only clip: write an `.m4a` (single AAC track) so
+        // it reads as audio, not a video file with no picture.
+        let audioOnly = dimensions == nil
+        let url = fileStore.nextClipURL(now: clock(), audioOnly: audioOnly)
+        let fileType: AVFileType = audioOnly ? .m4a : .mov
+        guard let w0 = try? AVAssetWriter(outputURL: url, fileType: fileType) else { return }
 
         var vInput: AVAssetWriterInput?
         if let (w, h) = dimensions {

@@ -73,7 +73,7 @@ final class RecordingControllerAudioOnlyTests: XCTestCase {
         wait(for: [clipWritten], timeout: 10)
 
         let clip = try FileManager.default.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil)
-            .first { $0.pathExtension == "mov" }
+            .first { $0.pathExtension == "m4a" }
         let asset = AVURLAsset(url: try XCTUnwrap(clip))
         XCTAssertEqual(asset.tracks(withMediaType: .audio).count, 1, "audio track expected")
         XCTAssertEqual(asset.tracks(withMediaType: .video).count, 0, "no video track expected")
@@ -115,10 +115,10 @@ final class RecordingControllerAudioOnlyTests: XCTestCase {
 
         wait(for: [twoClips], timeout: 10)
 
-        let movs = try FileManager.default.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil)
-            .filter { $0.pathExtension == "mov" }
-        XCTAssertGreaterThanOrEqual(movs.count, 2, "rotation should produce multiple clips")
-        for url in movs {
+        let clips = try FileManager.default.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "m4a" }
+        XCTAssertGreaterThanOrEqual(clips.count, 2, "rotation should produce multiple clips")
+        for url in clips {
             let asset = AVURLAsset(url: url)
             XCTAssertEqual(asset.tracks(withMediaType: .audio).count, 1, "each clip has one audio track")
             XCTAssertEqual(asset.tracks(withMediaType: .video).count, 0, "no video track in audio-only clips")
@@ -135,9 +135,9 @@ final class RecordingControllerAudioOnlyTests: XCTestCase {
             rc.handle(audioOnly: makeAudioSample(pts: audioPTS, frames: framesPerAudio), trigger: false)
             audioPTS = CMTimeAdd(audioPTS, CMTime(value: CMTimeValue(framesPerAudio), timescale: Int32(sampleRate)))
         }
-        let movs = (try? FileManager.default.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil)
-            .filter { $0.pathExtension == "mov" }) ?? []
-        XCTAssertTrue(movs.isEmpty, "no clip should be produced without a trigger")
+        let clips = (try? FileManager.default.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil)
+            .filter { ClipNaming.isClip($0) }) ?? []
+        XCTAssertTrue(clips.isEmpty, "no clip should be produced without a trigger")
         try? FileManager.default.removeItem(at: tmp)
     }
 }

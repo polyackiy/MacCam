@@ -90,8 +90,9 @@ final class FileStore {
 
     // MARK: Clip URLs and cleanup
 
-    func nextClipURL(now: Date) -> URL {
-        let name = ClipNaming.filename(for: now, calendar: Calendar.current)
+    func nextClipURL(now: Date, audioOnly: Bool = false) -> URL {
+        let ext = audioOnly ? ClipNaming.audioExtension : ClipNaming.videoExtension
+        let name = ClipNaming.filename(for: now, calendar: Calendar.current, ext: ext)
         return currentFolder().appendingPathComponent(name)
     }
 
@@ -101,8 +102,8 @@ final class FileStore {
         guard let items = try? fm.contentsOfDirectory(
             at: folder, includingPropertiesForKeys: [.contentModificationDateKey],
             options: [.skipsHiddenFiles]) else { return }
-        let movs = items.filter { $0.pathExtension.lowercased() == "mov" }
-        let withDates: [(url: URL, modified: Date)] = movs.compactMap { url in
+        let clips = items.filter { ClipNaming.isClip($0) }
+        let withDates: [(url: URL, modified: Date)] = clips.compactMap { url in
             let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
                 .contentModificationDate
             return date.map { (url, $0) }
@@ -123,7 +124,7 @@ final class FileStore {
         let keys: [URLResourceKey] = [.contentModificationDateKey, .fileSizeKey]
         guard let items = try? FileManager.default.contentsOfDirectory(
             at: folder, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles]) else { return [] }
-        return items.filter { $0.pathExtension.lowercased() == "mov" }.compactMap { url in
+        return items.filter { ClipNaming.isClip($0) }.compactMap { url in
             let v = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
             guard let date = v?.contentModificationDate, let size = v?.fileSize else { return nil }
             return ClipFile(url: url, size: Int64(size), modified: date)

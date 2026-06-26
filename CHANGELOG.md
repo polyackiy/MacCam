@@ -22,8 +22,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Start always takes priority.
 - Recording trigger modes: choose Continuous (always record), Motion, Voice, or
   Motion + Voice in Settings — replacing the standalone voice toggle. Continuous
-  and Voice can additionally record audio only (camera off) for a single-track
-  audio clip.
+  and Voice can additionally record audio only (camera off), saved as an `.m4a`
+  audio file (AAC); disk limits and auto-cleanup cover both `.mov` and `.m4a`.
 - Voice-activated recording: detect human speech on-device (SoundAnalysis) as a
   recording trigger, selectable via the trigger mode. Requires audio enabled;
   adjustable sensitivity.
