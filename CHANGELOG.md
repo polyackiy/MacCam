@@ -15,6 +15,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Microphone picker in Settings: choose which audio device records, or
   "Automatic" (built-in preferred), with a fallback if the chosen device is
   unavailable.
+- Tabbed Settings window (Camera, Motion, Recording, Schedule, Storage,
+  Appearance, System) replacing the single long list.
+- Weekly schedules: auto start/stop monitoring within a time window, and gate
+  recording to a time window (per-weekday, overnight windows supported). Manual
+  Start always takes priority.
 
 ### Fixed
 - Audio was never recorded. The hardened runtime requires the
