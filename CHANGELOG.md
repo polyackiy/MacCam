@@ -28,6 +28,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   recording trigger, selectable via the trigger mode. Requires audio enabled;
   adjustable sensitivity.
 
+### Changed
+- Tidier menu-bar dropdown: the current state is now shown as a clear section
+  header (instead of a stray greyed line), and the command items are uniformly
+  aligned.
+
 ### Fixed
 - Audio was never recorded. The hardened runtime requires the
   `com.apple.security.device.audio-input` entitlement (distinct from the sandbox
