@@ -1,0 +1,55 @@
+name: Bug report
+description: Report a problem with MacCam
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please do **not** include
+        recorded clips or other personal footage.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+      placeholder: When I enable guard mode, ...
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Settings…
+        2. Set sensitivity to 4
+        3. Start Monitoring
+        4. ...
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "14.5"
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: Mac model / camera
+      placeholder: "MacBook Pro 14\" M1, built-in camera"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: MacCam version / commit
+      placeholder: "1.0.0 or commit SHA"
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Output from Console.app filtered to the MacCam process, if any.
+      render: shell
