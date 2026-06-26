@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 import Combine
+import CoreImage
 
 /// Adapts a real capture format to the testable `FormatInfo` protocol.
 struct AVFormatAdapter: FormatInfo {
@@ -146,6 +147,48 @@ final class CameraManager: NSObject, ObservableObject {
         }
     }
 
+    // MARK: Snapshot (for the zone editor)
+
+    private var snapshotGrabber: SnapshotGrabber?
+
+    /// Grab a single frame as a `CGImage` (for the detection-zone editor). Starts
+    /// the session briefly if it isn't already running. Returns `nil` on failure
+    /// or if no frame arrives within a short timeout. Never writes to disk.
+    func captureSnapshot(_ completion: @escaping (CGImage?) -> Void) {
+        sessionQueue.async {
+            let wasRunning = self.session.isRunning
+            if self.session.inputs.isEmpty {
+                self.reconfigure()
+            }
+            let out = AVCaptureVideoDataOutput()
+            out.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+            var finished = false
+            let cleanup = {
+                if self.session.outputs.contains(out) { self.session.removeOutput(out) }
+                if !wasRunning { self.session.stopRunning() }
+                self.snapshotGrabber = nil
+            }
+            let grabber = SnapshotGrabber { image in
+                self.sessionQueue.async {
+                    guard !finished else { return }
+                    finished = true
+                    cleanup()
+                    DispatchQueue.main.async { completion(image) }
+                }
+            }
+            self.snapshotGrabber = grabber
+            out.setSampleBufferDelegate(grabber, queue: DispatchQueue(label: "capture.snapshot"))
+            if self.session.canAddOutput(out) { self.session.addOutput(out) }
+            if !wasRunning { self.session.startRunning() }
+            self.sessionQueue.asyncAfter(deadline: .now() + 3) {
+                guard !finished else { return }
+                finished = true
+                cleanup()
+                DispatchQueue.main.async { completion(nil) }
+            }
+        }
+    }
+
     // MARK: Disconnect / runtime errors
 
     @objc private func handleRuntimeError(_ note: Notification) {
@@ -160,5 +203,23 @@ final class CameraManager: NSObject, ObservableObject {
     @objc private func deviceDisconnected(_ note: Notification) {
         guard let device = note.object as? AVCaptureDevice, device == currentDevice else { return }
         DispatchQueue.main.async { self.statusMessage = "Camera disconnected — waiting…" }
+    }
+}
+
+/// One-shot sample-buffer delegate that converts the first frame to a `CGImage`.
+private final class SnapshotGrabber: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
+    private let completion: (CGImage?) -> Void
+    private var done = false
+    private let context = CIContext()
+
+    init(completion: @escaping (CGImage?) -> Void) { self.completion = completion }
+
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer,
+                       from connection: AVCaptureConnection) {
+        guard !done, let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        done = true
+        let ci = CIImage(cvPixelBuffer: pb)
+        let cg = context.createCGImage(ci, from: ci.extent)
+        completion(cg)
     }
 }

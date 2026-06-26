@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var manualOverride = false
     private var settingsWindow: NSWindow?
     private var aboutWindow: NSWindow?
+    private var zoneWindow: NSWindow?
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -29,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         captureDelegate = CaptureDelegate(detector: detector, recorder: recorder)
 
         recorder.onStateChange = { [weak self] _, _ in self?.updateMenu() }
+        wireStorageGate()
         wireMenu()
         wireGuard()
         menuBar.setLaunchAtLogin(LaunchAtLogin.isEnabled)
@@ -71,6 +73,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBar.onQuit = { [weak self] in
             self?.stopMonitoring()
             NSApp.terminate(nil)
+        }
+    }
+
+    private func wireStorageGate() {
+        recorder.storageGate = { [weak self] protectedURLs in
+            guard let self else { return .ok }
+            let snap = self.settings.snapshot()
+            let maxB = StorageMath.gbToBytes(snap.maxStorageGB)
+            let minFree = StorageMath.gbToBytes(snap.minFreeSpaceGB)
+            if maxB == 0 && minFree == 0 { return .ok }
+            if snap.diskLimitPolicy == .loop {
+                self.fileStore.enforce(maxBytes: maxB, minFreeBytes: minFree, protecting: protectedURLs)
+                return .ok
+            }
+            let total = self.fileStore.folderUsage().totalBytes
+            let free = self.fileStore.volumeFreeBytes()
+            return StorageMath.overLimit(totalBytes: total, freeBytes: free,
+                                         maxBytes: maxB, minFreeBytes: minFree) ? .stop : .ok
+        }
+        recorder.onStorageStop = { [weak self] in
+            guard let self else { return }
+            self.stopMonitoring()
+            self.menuBar.setState(.off, statusText: loc("Stopped: disk limit reached"))
         }
     }
 
@@ -127,6 +152,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func applyToDetector(_ snap: AppSettings) {
         // Staged and applied on the capture queue to avoid racing analyze().
         detector.requestUpdate(pixelDelta: snap.pixelDelta, threshold: snap.motionThreshold)
+        detector.requestMask(MotionMask(encoded: snap.detectionMask))
     }
 
     private func updateMenuBarAppearance() {
@@ -163,7 +189,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 camera: camera,
                 fileStore: fileStore,
                 onReconfigure: { [weak self] in self?.reconfigureIfMonitoring() },
-                onLaunchAtLoginChange: { [weak self] enabled in self?.setLaunchAtLogin(enabled) })
+                onLaunchAtLoginChange: { [weak self] enabled in self?.setLaunchAtLogin(enabled) },
+                onEditZones: { [weak self] in self?.openZoneEditor() })
             let hosting = NSHostingController(rootView: view)
             let window = NSWindow(contentViewController: hosting)
             window.title = loc("MacCam Settings")
@@ -190,6 +217,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         aboutWindow?.center()
         aboutWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    private func openZoneEditor() {
+        if zoneWindow == nil {
+            let view = ZoneEditorView(settings: settings, camera: camera)
+            let hosting = NSHostingController(rootView: view)
+            let window = NSWindow(contentViewController: hosting)
+            window.title = loc("Detection Zones")
+            window.styleMask = [.titled, .closable]
+            window.isReleasedWhenClosed = false
+            zoneWindow = window
+        }
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        zoneWindow?.center()
+        zoneWindow?.makeKeyAndOrderFront(nil)
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
