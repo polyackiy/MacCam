@@ -11,8 +11,16 @@ final class MotionDetector {
     static let analyzeHeight = 180
     private static let throttleInterval = 1.0 / 12.0
 
-    var pixelDelta: Int
-    var threshold: Double
+    private(set) var pixelDelta: Int
+    private(set) var threshold: Double
+
+    // Tunables are mutated only on the analysis queue (inside `analyze`). Other
+    // threads request changes via `requestUpdate`, staged here under a lock and
+    // picked up at the start of the next `analyze` — so there is no data race on
+    // the detector's mutable state.
+    private let paramLock = NSLock()
+    private var pendingPixelDelta: Int?
+    private var pendingThreshold: Double?
 
     private let count = analyzeWidth * analyzeHeight
     private var scaledBGRA: UnsafeMutableRawPointer
@@ -35,14 +43,30 @@ final class MotionDetector {
         previousGray.deallocate()
     }
 
-    func reset() {
-        hasPrevious = false
-        lastPTS = -.infinity
+    /// Thread-safe: stage new tunables to be applied on the analysis queue at
+    /// the next frame. Safe to call from any thread (e.g. the main queue when
+    /// settings change live).
+    func requestUpdate(pixelDelta: Int, threshold: Double) {
+        paramLock.lock()
+        pendingPixelDelta = pixelDelta
+        pendingThreshold = threshold
+        paramLock.unlock()
+    }
+
+    /// Pick up any staged tunables. Runs on the analysis queue. Changing the
+    /// threshold/pixel delta does not invalidate the stored reference frame, so
+    /// no reset is needed (and no frame is dropped on a settings change).
+    private func applyPendingUpdate() {
+        paramLock.lock()
+        if let pd = pendingPixelDelta { pixelDelta = pd; pendingPixelDelta = nil }
+        if let th = pendingThreshold { threshold = th; pendingThreshold = nil }
+        paramLock.unlock()
     }
 
     /// Returns nil for the first frame and for throttled frames; otherwise the
     /// motion verdict and the changed-pixel fraction.
     func analyze(_ pixelBuffer: CVPixelBuffer, pts: Double) -> (motion: Bool, fraction: Double)? {
+        applyPendingUpdate()
         if hasPrevious, pts - lastPTS < Self.throttleInterval { return nil }
 
         CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)

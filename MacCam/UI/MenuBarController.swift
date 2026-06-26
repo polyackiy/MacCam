@@ -14,7 +14,7 @@ final class MenuBarController: NSObject {
     private var state: State = .off
     private var statusText = "Idle"
     private var style: MenuBarStyle = .normal
-    private var discreetSymbol = "circle"
+    private var discreetSymbol = DiscreetIcon.circle.symbolName
 
     var onToggleMonitoring: (() -> Void)?
     var onOpenFolder: (() -> Void)?
@@ -73,6 +73,7 @@ final class MenuBarController: NSObject {
     /// Update menu-bar appearance (normal status colors vs discreet neutral
     /// glyph) and re-render the current state.
     func setAppearance(style: MenuBarStyle, discreetSymbol: String) {
+        guard style != self.style || discreetSymbol != self.discreetSymbol else { return }
         self.style = style
         self.discreetSymbol = discreetSymbol
         render()

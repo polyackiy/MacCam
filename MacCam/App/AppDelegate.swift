@@ -36,7 +36,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Apply detector/recorder-affecting settings live while monitoring,
         // without rebuilding the capture session (camera/FPS/audio changes go
-        // through reconfigureIfMonitoring instead).
+        // through reconfigureIfMonitoring instead). objectWillChange fires
+        // *before* the @Published value is written, so the async hop is
+        // load-bearing: it defers the read until after the (main-thread)
+        // mutation completes, giving us the new value.
         settings.objectWillChange
             .sink { [weak self] in
                 DispatchQueue.main.async {
@@ -120,9 +123,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func applyToDetector(_ snap: AppSettings) {
-        detector.pixelDelta = snap.pixelDelta
-        detector.threshold = snap.motionThreshold
-        detector.reset()
+        // Staged and applied on the capture queue to avoid racing analyze().
+        detector.requestUpdate(pixelDelta: snap.pixelDelta, threshold: snap.motionThreshold)
     }
 
     private func updateMenuBarAppearance() {
