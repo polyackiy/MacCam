@@ -12,7 +12,7 @@ final class RecordingControllerAudioOnlyTests: XCTestCase {
         AppSettings(cameraID: nil, targetFPS: 30, sensitivity: 2, pixelDelta: 25,
                     postMotionCooldown: 1, minClipLength: 1, maxClipLength: 60,
                     preRollEnabled: false, preRoll: 3, audioEnabled: true,
-                    audioDeviceID: nil, voiceTriggerEnabled: false, triggerMode: .motion, voiceSensitivity: 2, audioOnly: false,
+                    audioDeviceID: nil, triggerMode: .motion, voiceSensitivity: 2, audioOnly: false,
                     codec: .hevc, quality: .medium, autoCleanup: false,
                     cleanupDays: 14, guardMode: false,
                     monitoringSchedule: WeeklySchedule(), recordingSchedule: WeeklySchedule(),

@@ -73,7 +73,6 @@ struct AppSettings: Equatable {
     var preRoll: Double
     var audioEnabled: Bool
     var audioDeviceID: String?
-    var voiceTriggerEnabled: Bool
     var triggerMode: TriggerMode
     var voiceSensitivity: Int
     var audioOnly: Bool
@@ -113,7 +112,6 @@ final class SettingsStore: ObservableObject {
         static let preRoll = "preRoll"
         static let audioEnabled = "audioEnabled"
         static let audioDeviceID = "audioDeviceID"
-        static let voiceTriggerEnabled = "voiceTriggerEnabled"
         static let triggerMode = "triggerMode"
         static let audioOnly = "audioOnly"
         static let voiceSensitivity = "voiceSensitivity"
@@ -158,7 +156,6 @@ final class SettingsStore: ObservableObject {
     @Published var preRoll: Double { didSet { defaults.set(preRoll, forKey: Key.preRoll) } }
     @Published var audioEnabled: Bool { didSet { defaults.set(audioEnabled, forKey: Key.audioEnabled) } }
     @Published var audioDeviceID: String? { didSet { defaults.set(audioDeviceID, forKey: Key.audioDeviceID) } }
-    @Published var voiceTriggerEnabled: Bool { didSet { defaults.set(voiceTriggerEnabled, forKey: Key.voiceTriggerEnabled) } }
     @Published var triggerMode: TriggerMode { didSet { defaults.set(triggerMode.rawValue, forKey: Key.triggerMode) } }
     @Published var audioOnly: Bool { didSet { defaults.set(audioOnly, forKey: Key.audioOnly) } }
     @Published var voiceSensitivity: Int { didSet { defaults.set(voiceSensitivity, forKey: Key.voiceSensitivity) } }
@@ -221,7 +218,6 @@ final class SettingsStore: ObservableObject {
         preRoll = defaults.double(forKey: Key.preRoll)
         audioEnabled = defaults.bool(forKey: Key.audioEnabled)
         audioDeviceID = defaults.string(forKey: Key.audioDeviceID)
-        voiceTriggerEnabled = defaults.bool(forKey: Key.voiceTriggerEnabled)
         triggerMode = TriggerMode(rawValue: defaults.string(forKey: Key.triggerMode) ?? "motion") ?? .motion
         audioOnly = defaults.bool(forKey: Key.audioOnly)
         voiceSensitivity = defaults.integer(forKey: Key.voiceSensitivity)
@@ -254,7 +250,6 @@ final class SettingsStore: ObservableObject {
             preRoll: preRoll,
             audioEnabled: audioEnabled,
             audioDeviceID: audioDeviceID,
-            voiceTriggerEnabled: voiceTriggerEnabled,
             triggerMode: triggerMode,
             voiceSensitivity: voiceSensitivity,
             audioOnly: audioOnly,
