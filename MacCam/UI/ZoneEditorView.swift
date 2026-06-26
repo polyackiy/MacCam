@@ -1,44 +1,31 @@
 import SwiftUI
+import AVFoundation
 
-/// Paints a 16×9 ignore mask over a live camera snapshot. Ignored cells (red) are
-/// excluded from motion detection. The snapshot can be refreshed so the user can
-/// align zones against the current scene.
+/// Paints a 16×9 ignore mask over a live camera preview. Ignored cells (red) are
+/// excluded from motion detection, so the user can align zones against what the
+/// camera actually sees.
 struct ZoneEditorView: View {
     @ObservedObject var settings: SettingsStore
     let camera: CameraManager
 
     @State private var mask = MotionMask()
-    @State private var snapshot: CGImage?
-    @State private var loading = false
+    @State private var previewSession: AVCaptureSession?
 
     var body: some View {
         VStack(spacing: 12) {
-            HStack {
-                Text("Tap or drag cells to ignore (red). Motion there is not detected.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button(action: loadSnapshot) {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .help("Refresh camera preview")
-                .disabled(loading)
-            }
+            Text("Tap or drag cells to ignore (red). Motion there is not detected.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             GeometryReader { geo in
                 ZStack {
-                    if let snapshot {
-                        Image(snapshot, scale: 1, label: Text("preview"))
-                            .resizable()
+                    if let previewSession {
+                        CameraPreview(session: previewSession)
                     } else {
                         Rectangle().fill(Color.black.opacity(0.85))
-                        if loading {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Text("Camera preview unavailable")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                        Text("Camera preview unavailable")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     grid(in: geo.size)
                 }
@@ -63,15 +50,11 @@ struct ZoneEditorView: View {
         .frame(width: 520, height: 380)
         .onAppear {
             mask = MotionMask(encoded: settings.detectionMask) ?? MotionMask()
-            loadSnapshot()
+            camera.startPreview { previewSession = $0 }
         }
-    }
-
-    private func loadSnapshot() {
-        loading = true
-        camera.captureSnapshot { image in
-            snapshot = image
-            loading = false
+        .onDisappear {
+            camera.stopPreview()
+            previewSession = nil
         }
     }
 

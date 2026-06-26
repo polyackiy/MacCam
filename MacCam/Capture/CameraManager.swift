@@ -219,20 +219,23 @@ final class CameraManager: NSObject, ObservableObject {
         }
     }
 
-    // MARK: Snapshot (for the zone editor)
+    // MARK: Live preview (for the zone editor)
 
-    private var snapshotSession: AVCaptureSession?
-    private var snapshotGrabber: SnapshotGrabber?
+    private var previewSession: AVCaptureSession?
 
-    /// Grab a single camera frame as a `CGImage` for the detection-zone editor.
-    /// Uses a dedicated short-lived session, so it works in any recording mode —
-    /// including audio-only, where the monitoring session carries no camera — and
-    /// never disturbs monitoring. Returns nil on failure or a ~3s timeout. Never
-    /// writes to disk.
-    func captureSnapshot(_ completion: @escaping (CGImage?) -> Void) {
+    /// Provide a running camera session for a live preview in the zone editor.
+    /// Reuses the monitoring session when it already runs the camera (motion
+    /// modes) — so there is never a second session contending for the same
+    /// camera; otherwise spins up a dedicated camera-only session (the camera is
+    /// free when idle or in audio-only mode). The dedicated session has no data
+    /// output, so previewing never starts recording. Delivers nil if no camera.
+    func startPreview(_ completion: @escaping (AVCaptureSession?) -> Void) {
         sessionQueue.async {
-            guard self.snapshotSession == nil else {   // a grab is already in flight
-                DispatchQueue.main.async { completion(nil) }
+            let hasCamera = self.session.inputs.contains {
+                ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) ?? false
+            }
+            if self.session.isRunning && hasCamera {
+                DispatchQueue.main.async { completion(self.session) }
                 return
             }
             guard let device = self.pickDevice(self.settings.cameraID),
@@ -242,34 +245,22 @@ final class CameraManager: NSObject, ObservableObject {
             }
             let session = AVCaptureSession()
             session.beginConfiguration()
+            session.sessionPreset = .high
             if session.canAddInput(input) { session.addInput(input) }
-            let out = AVCaptureVideoDataOutput()
-            out.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
-            let grabber = SnapshotGrabber { image in
-                self.sessionQueue.async { self.finishSnapshot(image, completion) }
-            }
-            out.setSampleBufferDelegate(grabber, queue: DispatchQueue(label: "capture.snapshot"))
-            if session.canAddOutput(out) { session.addOutput(out) }
             session.commitConfiguration()
-
-            self.snapshotSession = session
-            self.snapshotGrabber = grabber
+            self.previewSession = session
             session.startRunning()
-            self.sessionQueue.asyncAfter(deadline: .now() + 3) {
-                self.finishSnapshot(nil, completion)
-            }
+            DispatchQueue.main.async { completion(session) }
         }
     }
 
-    /// Deliver the snapshot result once and tear down the dedicated session. Runs
-    /// on `sessionQueue`; the grabber callback and the timeout both call it, but
-    /// only the first (while `snapshotSession` is non-nil) takes effect.
-    private func finishSnapshot(_ image: CGImage?, _ completion: @escaping (CGImage?) -> Void) {
-        guard let session = snapshotSession else { return }
-        snapshotSession = nil
-        snapshotGrabber = nil
-        session.stopRunning()
-        DispatchQueue.main.async { completion(image) }
+    /// Tear down the dedicated preview session. No-op if the monitoring session
+    /// was reused — that one must keep running.
+    func stopPreview() {
+        sessionQueue.async {
+            self.previewSession?.stopRunning()
+            self.previewSession = nil
+        }
     }
 
     // MARK: Disconnect / runtime errors
@@ -286,23 +277,5 @@ final class CameraManager: NSObject, ObservableObject {
     @objc private func deviceDisconnected(_ note: Notification) {
         guard let device = note.object as? AVCaptureDevice, device == currentDevice else { return }
         DispatchQueue.main.async { self.statusMessage = "Camera disconnected — waiting…" }
-    }
-}
-
-/// One-shot sample-buffer delegate that converts the first frame to a `CGImage`.
-private final class SnapshotGrabber: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
-    private let completion: (CGImage?) -> Void
-    private var done = false
-    private let context = CIContext()
-
-    init(completion: @escaping (CGImage?) -> Void) { self.completion = completion }
-
-    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer,
-                       from connection: AVCaptureConnection) {
-        guard !done, let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-        done = true
-        let ci = CIImage(cvPixelBuffer: pb)
-        let cg = context.createCGImage(ci, from: ci.extent)
-        completion(cg)
     }
 }
