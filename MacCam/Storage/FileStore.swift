@@ -10,6 +10,9 @@ final class FileStore {
     private var resolvedFolder: URL?
     private var isAccessingScoped = false
     private let defaultOverride: URL?
+    // Guards the folder-resolution state; `currentFolder()` is called from both
+    // the capture queue (nextClipURL) and a background ioQueue (enforce/usage).
+    private let lock = NSLock()
 
     init(defaults: UserDefaults = .standard, defaultOverride: URL? = nil) {
         self.defaults = defaults
@@ -33,7 +36,13 @@ final class FileStore {
 
     /// Resolves the active folder once (user-selected bookmark if present and
     /// valid, otherwise the default). Subsequent calls return the cached value.
+    /// Thread-safe.
     func currentFolder() -> URL {
+        lock.lock(); defer { lock.unlock() }
+        return resolveFolderLocked()
+    }
+
+    private func resolveFolderLocked() -> URL {
         if let resolvedFolder { return resolvedFolder }
 
         if let data = defaults.data(forKey: bookmarkKey) {
@@ -57,16 +66,22 @@ final class FileStore {
     }
 
     func setFolder(_ url: URL) {
-        stopAccessing()
+        lock.lock(); defer { lock.unlock() }
+        stopAccessingLocked()
         if let data = try? url.bookmarkData(options: [.withSecurityScope],
                                             includingResourceValuesForKeys: nil, relativeTo: nil) {
             defaults.set(data, forKey: bookmarkKey)
         }
         resolvedFolder = nil
-        _ = currentFolder()  // re-resolve and begin scoped access
+        _ = resolveFolderLocked()  // re-resolve and begin scoped access
     }
 
     func stopAccessing() {
+        lock.lock(); defer { lock.unlock() }
+        stopAccessingLocked()
+    }
+
+    private func stopAccessingLocked() {
         if isAccessingScoped, let url = resolvedFolder {
             url.stopAccessingSecurityScopedResource()
         }

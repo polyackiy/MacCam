@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var monitoring = false
     private var manualOverride = false
+    private var stoppedStatus: String?   // sticky menu reason shown while idle
     private var settingsWindow: NSWindow?
     private var aboutWindow: NSWindow?
     private var zoneWindow: NSWindow?
@@ -82,11 +83,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         recorder.onStorageStop = { [weak self] in
             guard let self else { return }
             self.stopMonitoring()
-            // stopMonitoring enqueues an "Idle" updateMenu via async; enqueue our
-            // explanatory status after it so it isn't clobbered.
-            DispatchQueue.main.async {
-                self.menuBar.setState(.off, statusText: loc("Stopped: disk limit reached"))
-            }
+            // Sticky reason survives later updateMenu calls (e.g. a late
+            // finishWriting completion) until the next manual start.
+            self.stoppedStatus = loc("Stopped: disk limit reached")
+            self.updateMenu()
         }
     }
 
@@ -105,6 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func startMonitoring(manual: Bool) {
         if manual { manualOverride = true }
+        stoppedStatus = nil
         let snap = settings.snapshot()
         applyToDetector(snap)
         recorder.updateSettings(snap)
@@ -117,6 +118,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func stopMonitoring() {
         manualOverride = false
+        stoppedStatus = nil
         camera.stop()
         recorder.stop()
         monitoring = false
@@ -161,7 +163,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func updateMenu() {
         DispatchQueue.main.async {
             if !self.monitoring {
-                self.menuBar.setState(.off, statusText: loc("Idle"))
+                self.menuBar.setState(.off, statusText: self.stoppedStatus ?? loc("Idle"))
             } else if self.recorder.isRecording {
                 self.menuBar.setState(.recording, statusText: loc("Recording…"))
             } else {

@@ -163,10 +163,15 @@ final class RecordingController {
         guard !maintenanceScheduled else { return }
         maintenanceScheduled = true
         let maxB = maxStorageBytes, minFree = minFreeBytes, policy = diskPolicy
-        var protectedURLs = finalizingURLs
-        if let current = currentURL { protectedURLs.insert(current) }
         ioQueue.async { [weak self] in
             guard let self else { return }
+            // Read the protected set at execution time so a clip opened after
+            // scheduling is still protected from deletion.
+            self.lock.lock()
+            var protectedURLs = self.finalizingURLs
+            if let current = self.currentURL { protectedURLs.insert(current) }
+            self.lock.unlock()
+
             if policy == .loop {
                 self.fileStore.enforce(maxBytes: maxB, minFreeBytes: minFree, protecting: protectedURLs)
             }
