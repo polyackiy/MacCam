@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Disk-space limits: cap total clip size and/or keep a minimum amount of free
+  space, with a loop (delete oldest) or stop-and-notify policy. Settings show
+  current usage.
+- Detection zones: ignore parts of the frame via a 16×9 grid mask painted over a
+  camera snapshot, reducing false triggers.
+
 ## [1.0.0] - 2026-06-26
 
 First public release.
