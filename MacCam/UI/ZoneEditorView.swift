@@ -1,13 +1,15 @@
 import SwiftUI
+import AVFoundation
 
-/// Paints a 16×9 ignore mask over a camera snapshot. Ignored cells (red) are
-/// excluded from motion detection.
+/// Paints a 16×9 ignore mask over a live camera preview. Ignored cells (red) are
+/// excluded from motion detection, so the user can align zones against what the
+/// camera actually sees.
 struct ZoneEditorView: View {
     @ObservedObject var settings: SettingsStore
     let camera: CameraManager
 
     @State private var mask = MotionMask()
-    @State private var snapshot: CGImage?
+    @State private var previewSession: AVCaptureSession?
 
     var body: some View {
         VStack(spacing: 12) {
@@ -17,11 +19,13 @@ struct ZoneEditorView: View {
 
             GeometryReader { geo in
                 ZStack {
-                    if let snapshot {
-                        Image(snapshot, scale: 1, label: Text("preview"))
-                            .resizable()
+                    if let previewSession {
+                        CameraPreview(session: previewSession)
                     } else {
                         Rectangle().fill(Color.black.opacity(0.85))
+                        Text("Camera preview unavailable")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     grid(in: geo.size)
                 }
@@ -46,7 +50,11 @@ struct ZoneEditorView: View {
         .frame(width: 520, height: 380)
         .onAppear {
             mask = MotionMask(encoded: settings.detectionMask) ?? MotionMask()
-            camera.captureSnapshot { snapshot = $0 }
+            camera.startPreview { previewSession = $0 }
+        }
+        .onDisappear {
+            camera.stopPreview()
+            previewSession = nil
         }
     }
 

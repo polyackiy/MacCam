@@ -15,6 +15,31 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Microphone picker in Settings: choose which audio device records, or
   "Automatic" (built-in preferred), with a fallback if the chosen device is
   unavailable.
+- Tabbed Settings window (Camera, Motion, Recording, Schedule, Storage,
+  Appearance, System) replacing the single long list.
+- Weekly schedules: auto start/stop monitoring within a time window, and gate
+  recording to a time window (per-weekday, overnight windows supported). Manual
+  Start always takes priority.
+- Recording trigger modes: choose Continuous (always record), Motion, Voice, or
+  Motion + Voice in Settings — replacing the standalone voice toggle. Continuous
+  and Voice can additionally record audio only (camera off), saved as an `.m4a`
+  audio file (AAC); disk limits and auto-cleanup cover both `.mov` and `.m4a`.
+- Voice-activated recording: detect human speech on-device (SoundAnalysis) as a
+  recording trigger, selectable via the trigger mode. Requires audio enabled;
+  adjustable sensitivity.
+
+### Changed
+- The detection-zone editor now shows a live camera preview to align zones
+  against. It reuses the monitoring session when the camera is already running
+  (motion modes) and otherwise opens a dedicated camera-only session, so it works
+  in any recording mode (including audio-only) without disturbing monitoring.
+- Redesigned Settings as a sidebar window (Camera, Detection, Recording,
+  Schedule, Storage, General) with grouped sections and inline help. Detection
+  unifies the motion and voice triggers; audio capture moved to Camera; guard
+  mode moved to Schedule; appearance and system options merged into General.
+- Tidier menu-bar dropdown: the current state is now shown as a clear section
+  header (instead of a stray greyed line), and the command items are uniformly
+  aligned with consistent icons.
 
 ### Fixed
 - Audio was never recorded. The hardened runtime requires the

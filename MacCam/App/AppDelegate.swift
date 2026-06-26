@@ -10,11 +10,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var detector: MotionDetector!
     private var recorder: RecordingController!
     private var captureDelegate: CaptureDelegate!
+    private let voiceDetector = VoiceDetector()
     private let menuBar = MenuBarController()
     private let lockMonitor = LockMonitor()
+    private let scheduler = Scheduler()
 
     private var monitoring = false
     private var manualOverride = false
+    private var screenLocked = false
     private var stoppedStatus: String?   // sticky menu reason shown while idle
     private var settingsWindow: NSWindow?
     private var aboutWindow: NSWindow?
@@ -28,7 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         camera = CameraManager(settings: snap)
         detector = MotionDetector(pixelDelta: snap.pixelDelta, threshold: snap.motionThreshold)
         recorder = RecordingController(fileStore: fileStore, settings: snap)
-        captureDelegate = CaptureDelegate(detector: detector, recorder: recorder)
+        captureDelegate = CaptureDelegate(detector: detector, recorder: recorder, voiceDetector: voiceDetector)
 
         recorder.onStateChange = { [weak self] _, _ in self?.updateMenu() }
         wireStorageGate()
@@ -37,6 +40,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBar.setLaunchAtLogin(LaunchAtLogin.isEnabled)
         updateMenuBarAppearance()
         lockMonitor.start()
+
+        scheduler.onMonitoringWindowChange = { [weak self] _ in self?.evaluateMonitoring() }
+        scheduler.update(monitoring: snap.monitoringSchedule, recording: snap.recordingSchedule)
+        scheduler.start()
 
         // Apply detector/recorder-affecting settings live while monitoring,
         // without rebuilding the capture session (camera/FPS/audio changes go
@@ -98,12 +105,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func wireGuard() {
         lockMonitor.onLock = { [weak self] in
-            guard let self, self.settings.guardMode, !self.monitoring else { return }
-            self.startMonitoring(manual: false)
+            guard let self else { return }
+            self.screenLocked = true
+            self.evaluateMonitoring()
         }
         lockMonitor.onUnlock = { [weak self] in
-            guard let self, self.monitoring, !self.manualOverride else { return }
-            self.stopMonitoring()
+            guard let self else { return }
+            self.screenLocked = false
+            self.evaluateMonitoring()
+        }
+    }
+
+    /// Auto-monitoring sources are guard mode and the monitoring schedule; a
+    /// manual Start overrides both and runs until manual Stop. Acts only on a
+    /// state change, so it is safe to call repeatedly.
+    private func evaluateMonitoring() {
+        if manualOverride { return }
+        let guardActive = settings.guardMode && screenLocked
+        let shouldMonitor = guardActive || scheduler.isMonitoringWindowActive()
+        if shouldMonitor && !monitoring {
+            startMonitoring(manual: false)
+        } else if !shouldMonitor && monitoring {
+            stopMonitoring()
         }
     }
 
@@ -127,31 +150,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         stoppedStatus = nil
         camera.stop()
         recorder.stop()
+        voiceDetector.reset()
         monitoring = false
         updateMenu()
+        // No re-arm here: a manual Stop pauses until the next auto trigger (a
+        // schedule-window transition or screen lock), so the button always works.
     }
 
     private func reconfigureIfMonitoring() {
         guard monitoring else { return }
         let snap = settings.snapshot()
+        // Finalize any in-progress clip before the capture session changes. A
+        // reconfigure can change which media flows (audio-only ⇄ video) or the
+        // video dimensions; an already-open writer is built for the old set, so
+        // continuing it would drop frames or splice mismatched tracks. Closing it
+        // here makes the next clip open cleanly with the new configuration.
+        recorder.stop()
         applyToDetector(snap)
         recorder.updateSettings(snap)
         camera.configure(settings: snap, delegate: captureDelegate)
     }
 
-    /// Push current settings into the detector and recorder without touching
-    /// the capture session. Cheap; safe to call on every settings edit.
+    /// Push current settings into the detector/recorder (when monitoring) and the
+    /// scheduler (always), then re-evaluate auto-monitoring. Cheap; safe to call
+    /// on every settings edit.
     private func applyLiveSettings() {
-        guard monitoring else { return }
         let snap = settings.snapshot()
-        applyToDetector(snap)
-        recorder.updateSettings(snap)
+        scheduler.update(monitoring: snap.monitoringSchedule, recording: snap.recordingSchedule)
+        if monitoring {
+            applyToDetector(snap)
+            recorder.updateSettings(snap)
+        }
+        evaluateMonitoring()
     }
 
     private func applyToDetector(_ snap: AppSettings) {
         // Staged and applied on the capture queue to avoid racing analyze().
         detector.requestUpdate(pixelDelta: snap.pixelDelta, threshold: snap.motionThreshold)
         detector.requestMask(MotionMask(encoded: snap.detectionMask))
+        voiceDetector.requestUpdate(
+            enabled: snap.triggerMode.usesVoice && snap.audioEnabled,
+            threshold: VoiceMath.confidenceThreshold(forSensitivity: snap.voiceSensitivity))
+        captureDelegate.setTriggerMode(snap.triggerMode)
+        captureDelegate.setAudioOnly(snap.effectiveAudioOnly)
     }
 
     private func updateMenuBarAppearance() {
@@ -183,7 +224,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func openSettings() {
         if settingsWindow == nil {
-            let view = SettingsView(
+            let context = SettingsContext(
                 settings: settings,
                 camera: camera,
                 fileStore: fileStore,
@@ -191,10 +232,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 onLaunchAtLoginChange: { [weak self] enabled in self?.setLaunchAtLogin(enabled) },
                 onEditZones: { [weak self] in self?.openZoneEditor() },
                 onRequestAudioAccess: { [weak self] in self?.requestAudioAccessIfNeeded() })
-            let hosting = NSHostingController(rootView: view)
+            let hosting = NSHostingController(rootView: SettingsView(context: context))
             let window = NSWindow(contentViewController: hosting)
             window.title = loc("MacCam Settings")
-            window.styleMask = [.titled, .closable, .miniaturizable]
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.isReleasedWhenClosed = false
             settingsWindow = window
         }

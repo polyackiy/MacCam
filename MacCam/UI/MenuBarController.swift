@@ -7,7 +7,7 @@ final class MenuBarController: NSObject {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let menu = NSMenu()
     private let toggleItem = NSMenuItem()
-    private let statusLineItem = NSMenuItem()
+    private var statusLineItem = NSMenuItem()
     private let launchItem = NSMenuItem()
     private var blinkTimer: Timer?
     private var blinkOn = true
@@ -30,6 +30,11 @@ final class MenuBarController: NSObject {
     }
 
     private func buildMenu() {
+        // Status as a section header (small, greyed, non-clickable) so it reads
+        // clearly as the current state rather than a stray menu command.
+        statusLineItem = makeStatusHeader(loc("Idle"))
+        menu.addItem(statusLineItem)
+
         toggleItem.title = loc("Start Monitoring")
         toggleItem.target = self
         toggleItem.action = #selector(toggle)
@@ -37,36 +42,47 @@ final class MenuBarController: NSObject {
 
         menu.addItem(.separator())
 
-        statusLineItem.title = loc("Idle")
-        statusLineItem.isEnabled = false
-        menu.addItem(statusLineItem)
-
-        menu.addItem(.separator())
-
         let folder = NSMenuItem(title: loc("Open Clips Folder…"), action: #selector(openFolder), keyEquivalent: "")
         folder.target = self
+        folder.image = menuIcon("folder")
         menu.addItem(folder)
 
         let settings = NSMenuItem(title: loc("Settings…"), action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
+        settings.image = menuIcon("gearshape")
         menu.addItem(settings)
 
         launchItem.title = loc("Launch at Login")
         launchItem.target = self
         launchItem.action = #selector(toggleLaunch)
+        launchItem.image = menuIcon("power")
         menu.addItem(launchItem)
 
         menu.addItem(.separator())
 
         let about = NSMenuItem(title: loc("About MacCam"), action: #selector(openAbout), keyEquivalent: "")
         about.target = self
+        about.image = menuIcon("info.circle")
         menu.addItem(about)
 
         let quit = NSMenuItem(title: loc("Quit MacCam"), action: #selector(quit), keyEquivalent: "q")
         quit.target = self
+        quit.image = menuIcon("xmark.circle")
         menu.addItem(quit)
 
         statusItem.menu = menu
+    }
+
+    /// A consistently-sized template icon for a menu command. Every command item
+    /// gets one so the icon column is uniform — macOS 26 reserves that column and
+    /// auto-decorates some items (e.g. Settings) anyway, so supplying our own
+    /// keeps the whole menu aligned and visually consistent.
+    private func menuIcon(_ name: String) -> NSImage? {
+        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
+        let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(config)
+        image?.isTemplate = true
+        return image
     }
 
     func setState(_ state: State, statusText: String) {
@@ -86,7 +102,8 @@ final class MenuBarController: NSObject {
 
     private func render() {
         toggleItem.title = (state == .off) ? loc("Start Monitoring") : loc("Stop Monitoring")
-        statusLineItem.title = statusText
+        toggleItem.image = menuIcon(state == .off ? "play.fill" : "stop.fill")
+        applyStatus(statusText)
         blinkTimer?.invalidate()
         blinkTimer = nil
 
@@ -112,6 +129,45 @@ final class MenuBarController: NSObject {
 
     func setLaunchAtLogin(_ on: Bool) {
         launchItem.state = on ? .on : .off
+    }
+
+    // MARK: Status header
+
+    /// A non-actionable status row. Uses the native section-header style on
+    /// macOS 14+, and an equivalent small greyed label on macOS 13.
+    private func makeStatusHeader(_ text: String) -> NSMenuItem {
+        if #available(macOS 14.0, *) {
+            return NSMenuItem.sectionHeader(title: text)
+        }
+        let item = NSMenuItem()
+        item.isEnabled = false
+        item.attributedTitle = Self.headerAttributed(text)
+        return item
+    }
+
+    private func applyStatus(_ text: String) {
+        if #available(macOS 14.0, *) {
+            // Rebuild the section header in place so its header styling is never
+            // dependent on a plain title update preserving it.
+            let fresh = NSMenuItem.sectionHeader(title: text)
+            let idx = menu.index(of: statusLineItem)
+            if idx >= 0 {
+                menu.removeItem(at: idx)
+                menu.insertItem(fresh, at: idx)
+            } else {
+                menu.insertItem(fresh, at: 0)
+            }
+            statusLineItem = fresh
+        } else {
+            statusLineItem.attributedTitle = Self.headerAttributed(text)
+        }
+    }
+
+    private static func headerAttributed(_ text: String) -> NSAttributedString {
+        NSAttributedString(string: text, attributes: [
+            .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold),
+            .foregroundColor: NSColor.secondaryLabelColor,
+        ])
     }
 
     /// Monochrome template image that adapts to the menu-bar appearance.

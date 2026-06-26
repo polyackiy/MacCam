@@ -73,17 +73,27 @@ struct AppSettings: Equatable {
     var preRoll: Double
     var audioEnabled: Bool
     var audioDeviceID: String?
+    var triggerMode: TriggerMode
+    var voiceSensitivity: Int
+    var audioOnly: Bool
     var codec: VideoCodec
     var quality: Quality
     var autoCleanup: Bool
     var cleanupDays: Int
     var guardMode: Bool
+    var monitoringSchedule: WeeklySchedule
+    var recordingSchedule: WeeklySchedule
     var maxStorageGB: Double
     var minFreeSpaceGB: Double
     var diskLimitPolicy: DiskLimitPolicy
     var detectionMask: String
 
     var motionThreshold: Double { MotionMath.motionThreshold(forSensitivity: sensitivity) }
+
+    /// Audio-only is effective only when audio is on and the trigger permits it
+    /// (Continuous or Voice). A stale `audioOnly` in any other combination is
+    /// inert, so the camera/recorder never silently drop video.
+    var effectiveAudioOnly: Bool { audioOnly && audioEnabled && triggerMode.allowsAudioOnly }
 }
 
 /// `UserDefaults`-backed, observable settings. `@Published` properties persist
@@ -102,6 +112,9 @@ final class SettingsStore: ObservableObject {
         static let preRoll = "preRoll"
         static let audioEnabled = "audioEnabled"
         static let audioDeviceID = "audioDeviceID"
+        static let triggerMode = "triggerMode"
+        static let audioOnly = "audioOnly"
+        static let voiceSensitivity = "voiceSensitivity"
         static let codec = "codec"
         static let quality = "quality"
         static let autoCleanup = "autoCleanup"
@@ -114,6 +127,22 @@ final class SettingsStore: ObservableObject {
         static let minFreeSpaceGB = "minFreeSpaceGB"
         static let diskLimitPolicy = "diskLimitPolicy"
         static let detectionMask = "detectionMask"
+        static let monitoringSchedule = "monitoringSchedule"
+        static let recordingSchedule = "recordingSchedule"
+    }
+
+    private static func encodeSchedule(_ schedule: WeeklySchedule) -> String {
+        guard let data = try? JSONEncoder().encode(schedule),
+              let string = String(data: data, encoding: .utf8) else { return "" }
+        return string
+    }
+
+    private static func decodeSchedule(_ string: String?) -> WeeklySchedule {
+        guard let string, let data = string.data(using: .utf8),
+              let schedule = try? JSONDecoder().decode(WeeklySchedule.self, from: data) else {
+            return WeeklySchedule()
+        }
+        return schedule
     }
 
     @Published var cameraID: String? { didSet { defaults.set(cameraID, forKey: Key.cameraID) } }
@@ -127,11 +156,20 @@ final class SettingsStore: ObservableObject {
     @Published var preRoll: Double { didSet { defaults.set(preRoll, forKey: Key.preRoll) } }
     @Published var audioEnabled: Bool { didSet { defaults.set(audioEnabled, forKey: Key.audioEnabled) } }
     @Published var audioDeviceID: String? { didSet { defaults.set(audioDeviceID, forKey: Key.audioDeviceID) } }
+    @Published var triggerMode: TriggerMode { didSet { defaults.set(triggerMode.rawValue, forKey: Key.triggerMode) } }
+    @Published var audioOnly: Bool { didSet { defaults.set(audioOnly, forKey: Key.audioOnly) } }
+    @Published var voiceSensitivity: Int { didSet { defaults.set(voiceSensitivity, forKey: Key.voiceSensitivity) } }
     @Published var codec: VideoCodec { didSet { defaults.set(codec.rawValue, forKey: Key.codec) } }
     @Published var quality: Quality { didSet { defaults.set(quality.rawValue, forKey: Key.quality) } }
     @Published var autoCleanup: Bool { didSet { defaults.set(autoCleanup, forKey: Key.autoCleanup) } }
     @Published var cleanupDays: Int { didSet { defaults.set(cleanupDays, forKey: Key.cleanupDays) } }
     @Published var guardMode: Bool { didSet { defaults.set(guardMode, forKey: Key.guardMode) } }
+    @Published var monitoringSchedule: WeeklySchedule {
+        didSet { defaults.set(Self.encodeSchedule(monitoringSchedule), forKey: Key.monitoringSchedule) }
+    }
+    @Published var recordingSchedule: WeeklySchedule {
+        didSet { defaults.set(Self.encodeSchedule(recordingSchedule), forKey: Key.recordingSchedule) }
+    }
     @Published var launchAtLogin: Bool { didSet { defaults.set(launchAtLogin, forKey: Key.launchAtLogin) } }
     @Published var menuBarStyle: MenuBarStyle { didSet { defaults.set(menuBarStyle.rawValue, forKey: Key.menuBarStyle) } }
     @Published var discreetIcon: DiscreetIcon { didSet { defaults.set(discreetIcon.rawValue, forKey: Key.discreetIcon) } }
@@ -152,6 +190,9 @@ final class SettingsStore: ObservableObject {
             Key.preRollEnabled: false,
             Key.preRoll: 3.0,
             Key.audioEnabled: false,
+            Key.triggerMode: TriggerMode.motion.rawValue,
+            Key.audioOnly: false,
+            Key.voiceSensitivity: 2,
             Key.codec: VideoCodec.hevc.rawValue,
             Key.quality: Quality.medium.rawValue,
             Key.autoCleanup: false,
@@ -177,11 +218,16 @@ final class SettingsStore: ObservableObject {
         preRoll = defaults.double(forKey: Key.preRoll)
         audioEnabled = defaults.bool(forKey: Key.audioEnabled)
         audioDeviceID = defaults.string(forKey: Key.audioDeviceID)
+        triggerMode = TriggerMode(rawValue: defaults.string(forKey: Key.triggerMode) ?? "motion") ?? .motion
+        audioOnly = defaults.bool(forKey: Key.audioOnly)
+        voiceSensitivity = defaults.integer(forKey: Key.voiceSensitivity)
         codec = VideoCodec(rawValue: defaults.string(forKey: Key.codec) ?? "hevc") ?? .hevc
         quality = Quality(rawValue: defaults.string(forKey: Key.quality) ?? "medium") ?? .medium
         autoCleanup = defaults.bool(forKey: Key.autoCleanup)
         cleanupDays = defaults.integer(forKey: Key.cleanupDays)
         guardMode = defaults.bool(forKey: Key.guardMode)
+        monitoringSchedule = Self.decodeSchedule(defaults.string(forKey: Key.monitoringSchedule))
+        recordingSchedule = Self.decodeSchedule(defaults.string(forKey: Key.recordingSchedule))
         launchAtLogin = defaults.bool(forKey: Key.launchAtLogin)
         menuBarStyle = MenuBarStyle(rawValue: defaults.string(forKey: Key.menuBarStyle) ?? "normal") ?? .normal
         discreetIcon = DiscreetIcon(rawValue: defaults.string(forKey: Key.discreetIcon) ?? "circle") ?? .circle
@@ -190,6 +236,12 @@ final class SettingsStore: ObservableObject {
         diskLimitPolicy = DiskLimitPolicy(rawValue: defaults.string(forKey: Key.diskLimitPolicy) ?? "loop") ?? .loop
         detectionMask = defaults.string(forKey: Key.detectionMask) ?? ""
     }
+
+    /// Whether the audio-only option currently applies: audio on AND a trigger
+    /// that permits it (Continuous/Voice). Shared by the Settings views so the
+    /// gate isn't re-spelled per view. `AppSettings.effectiveAudioOnly` is the
+    /// capture-pipeline equivalent (it additionally requires the `audioOnly` flag).
+    var audioOnlyAvailable: Bool { audioEnabled && triggerMode.allowsAudioOnly }
 
     func snapshot() -> AppSettings {
         AppSettings(
@@ -204,11 +256,16 @@ final class SettingsStore: ObservableObject {
             preRoll: preRoll,
             audioEnabled: audioEnabled,
             audioDeviceID: audioDeviceID,
+            triggerMode: triggerMode,
+            voiceSensitivity: voiceSensitivity,
+            audioOnly: audioOnly,
             codec: codec,
             quality: quality,
             autoCleanup: autoCleanup,
             cleanupDays: cleanupDays,
             guardMode: guardMode,
+            monitoringSchedule: monitoringSchedule,
+            recordingSchedule: recordingSchedule,
             maxStorageGB: maxStorageGB,
             minFreeSpaceGB: minFreeSpaceGB,
             diskLimitPolicy: diskLimitPolicy,
