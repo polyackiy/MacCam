@@ -39,6 +39,18 @@ struct RecordingSettingsTab: View {
                     Text("Automatic (built-in preferred)").tag("")
                     ForEach(microphones, id: \.id) { Text($0.name).tag($0.id) }
                 }
+                Toggle("Trigger recording on voice", isOn: Binding(
+                    get: { settings.voiceTriggerEnabled },
+                    set: { settings.voiceTriggerEnabled = $0 }))
+                if settings.voiceTriggerEnabled {
+                    VStack(alignment: .leading) {
+                        Text("Voice sensitivity: \(settings.voiceSensitivity) (0 = strict, 4 = sensitive)")
+                        Slider(value: Binding(
+                            get: { Double(settings.voiceSensitivity) },
+                            set: { settings.voiceSensitivity = Int($0.rounded()) }),
+                               in: 0...4, step: 1)
+                    }
+                }
             }
             Picker("Codec", selection: $settings.codec) {
                 ForEach(VideoCodec.allCases) { Text($0.label).tag($0) }
