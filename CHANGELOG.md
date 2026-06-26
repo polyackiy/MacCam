@@ -6,46 +6,38 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-06-27
+
 ### Added
-- Disk-space limits: cap total clip size and/or keep a minimum amount of free
-  space, with a loop (delete oldest) or stop-and-notify policy. Settings show
-  current usage.
-- Detection zones: ignore parts of the frame via a 16×9 grid mask painted over a
-  camera snapshot, reducing false triggers.
-- Microphone picker in Settings: choose which audio device records, or
-  "Automatic" (built-in preferred), with a fallback if the chosen device is
-  unavailable.
-- Tabbed Settings window (Camera, Motion, Recording, Schedule, Storage,
-  Appearance, System) replacing the single long list.
-- Weekly schedules: auto start/stop monitoring within a time window, and gate
-  recording to a time window (per-weekday, overnight windows supported). Manual
-  Start always takes priority.
-- Recording trigger modes: choose Continuous (always record), Motion, Voice, or
-  Motion + Voice in Settings — replacing the standalone voice toggle. Continuous
-  and Voice can additionally record audio only (camera off), saved as an `.m4a`
-  audio file (AAC); disk limits and auto-cleanup cover both `.mov` and `.m4a`.
+- Recording trigger modes — Continuous (always record), Motion, Voice, or
+  Motion + Voice — chosen in Settings. Continuous and Voice skip motion analysis
+  to save CPU.
 - Voice-activated recording: detect human speech on-device (SoundAnalysis) as a
-  recording trigger, selectable via the trigger mode. Requires audio enabled;
-  adjustable sensitivity.
+  trigger, with adjustable sensitivity. Requires audio enabled.
+- Audio-only recording: capture sound with the camera off, saved as an `.m4a`
+  (AAC) file. Available with the Continuous or Voice trigger.
+- Detection zones: paint a 16×9 ignore mask over a live camera preview to skip
+  busy areas (a swaying tree, a street) and reduce false triggers.
+- Weekly schedules: auto start/stop monitoring within a time window, and gate
+  recording to its own window (per-weekday, overnight supported). A manual Start
+  always takes priority.
+- Disk-space limits: cap total clip size and/or keep a minimum amount of free
+  space, then loop (delete oldest) or stop & notify. Settings show current usage.
+- Microphone picker in Settings: choose the audio device or "Automatic"
+  (built-in preferred), with a fallback if the chosen device is unavailable.
 
 ### Changed
-- The detection-zone editor now shows a live camera preview to align zones
-  against. It reuses the monitoring session when the camera is already running
-  (motion modes) and otherwise opens a dedicated camera-only session, so it works
-  in any recording mode (including audio-only) without disturbing monitoring.
-- Redesigned Settings as a sidebar window (Camera, Detection, Recording,
-  Schedule, Storage, General) with grouped sections and inline help. Detection
-  unifies the motion and voice triggers; audio capture moved to Camera; guard
-  mode moved to Schedule; appearance and system options merged into General.
-- Tidier menu-bar dropdown: the current state is now shown as a clear section
-  header (instead of a stray greyed line), and the command items are uniformly
-  aligned with consistent icons.
+- Settings redesigned as a sidebar window (Camera, Detection, Recording,
+  Schedule, Storage, General) with grouped sections and inline help, replacing
+  the single scrolling list.
+- Tidier menu-bar dropdown: the current state shows as a clear section header and
+  the commands are uniformly aligned with consistent icons.
 
 ### Fixed
-- Audio was never recorded. The hardened runtime requires the
+- Audio was never recorded: the hardened runtime needs the
   `com.apple.security.device.audio-input` entitlement (distinct from the sandbox
   `device.microphone` key), which was missing, so the microphone was blocked.
-  Also: a capturable microphone is now chosen (built-in preferred) instead of the
+  Also, a capturable microphone is now chosen (built-in preferred) instead of the
   system default — which may be an un-capturable Bluetooth/output device — and
   microphone access is requested when monitoring starts so the prompt appears.
 
@@ -72,5 +64,6 @@ First public release.
 - Continuous integration (build + test + lint) and a tagged release pipeline
   that publishes a DMG.
 
-[Unreleased]: https://github.com/polyackiy/MacCam/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/polyackiy/MacCam/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/polyackiy/MacCam/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/polyackiy/MacCam/releases/tag/v1.0.0
