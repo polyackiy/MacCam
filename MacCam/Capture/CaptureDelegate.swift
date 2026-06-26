@@ -10,11 +10,13 @@ final class CaptureDelegate: NSObject,
 
     private let detector: MotionDetector
     private let recorder: RecordingController
+    private let voiceDetector: VoiceDetector
     private var lastMotion = false
 
-    init(detector: MotionDetector, recorder: RecordingController) {
+    init(detector: MotionDetector, recorder: RecordingController, voiceDetector: VoiceDetector) {
         self.detector = detector
         self.recorder = recorder
+        self.voiceDetector = voiceDetector
     }
 
     func captureOutput(_ output: AVCaptureOutput,
@@ -22,6 +24,7 @@ final class CaptureDelegate: NSObject,
                        from connection: AVCaptureConnection) {
         if output is AVCaptureAudioDataOutput {
             recorder.handle(audio: sampleBuffer)
+            voiceDetector.analyze(sampleBuffer)
             return
         }
 
@@ -30,6 +33,7 @@ final class CaptureDelegate: NSObject,
         if let result = detector.analyze(pixelBuffer, pts: pts) {
             lastMotion = result.motion
         }
-        recorder.handle(video: sampleBuffer, motion: lastMotion)
+        let trigger = lastMotion || voiceDetector.isActive()
+        recorder.handle(video: sampleBuffer, motion: trigger)
     }
 }

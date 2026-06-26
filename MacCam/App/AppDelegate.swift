@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var detector: MotionDetector!
     private var recorder: RecordingController!
     private var captureDelegate: CaptureDelegate!
+    private let voiceDetector = VoiceDetector()
     private let menuBar = MenuBarController()
     private let lockMonitor = LockMonitor()
     private let scheduler = Scheduler()
@@ -30,7 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         camera = CameraManager(settings: snap)
         detector = MotionDetector(pixelDelta: snap.pixelDelta, threshold: snap.motionThreshold)
         recorder = RecordingController(fileStore: fileStore, settings: snap)
-        captureDelegate = CaptureDelegate(detector: detector, recorder: recorder)
+        captureDelegate = CaptureDelegate(detector: detector, recorder: recorder, voiceDetector: voiceDetector)
 
         recorder.onStateChange = { [weak self] _, _ in self?.updateMenu() }
         wireStorageGate()
@@ -149,6 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         stoppedStatus = nil
         camera.stop()
         recorder.stop()
+        voiceDetector.reset()
         monitoring = false
         updateMenu()
         // No re-arm here: a manual Stop pauses until the next auto trigger (a
@@ -180,6 +182,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Staged and applied on the capture queue to avoid racing analyze().
         detector.requestUpdate(pixelDelta: snap.pixelDelta, threshold: snap.motionThreshold)
         detector.requestMask(MotionMask(encoded: snap.detectionMask))
+        voiceDetector.requestUpdate(
+            enabled: snap.voiceTriggerEnabled && snap.audioEnabled,
+            threshold: VoiceMath.confidenceThreshold(forSensitivity: snap.voiceSensitivity))
     }
 
     private func updateMenuBarAppearance() {

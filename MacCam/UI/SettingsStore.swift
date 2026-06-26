@@ -73,6 +73,8 @@ struct AppSettings: Equatable {
     var preRoll: Double
     var audioEnabled: Bool
     var audioDeviceID: String?
+    var voiceTriggerEnabled: Bool
+    var voiceSensitivity: Int
     var codec: VideoCodec
     var quality: Quality
     var autoCleanup: Bool
@@ -104,6 +106,8 @@ final class SettingsStore: ObservableObject {
         static let preRoll = "preRoll"
         static let audioEnabled = "audioEnabled"
         static let audioDeviceID = "audioDeviceID"
+        static let voiceTriggerEnabled = "voiceTriggerEnabled"
+        static let voiceSensitivity = "voiceSensitivity"
         static let codec = "codec"
         static let quality = "quality"
         static let autoCleanup = "autoCleanup"
@@ -145,6 +149,8 @@ final class SettingsStore: ObservableObject {
     @Published var preRoll: Double { didSet { defaults.set(preRoll, forKey: Key.preRoll) } }
     @Published var audioEnabled: Bool { didSet { defaults.set(audioEnabled, forKey: Key.audioEnabled) } }
     @Published var audioDeviceID: String? { didSet { defaults.set(audioDeviceID, forKey: Key.audioDeviceID) } }
+    @Published var voiceTriggerEnabled: Bool { didSet { defaults.set(voiceTriggerEnabled, forKey: Key.voiceTriggerEnabled) } }
+    @Published var voiceSensitivity: Int { didSet { defaults.set(voiceSensitivity, forKey: Key.voiceSensitivity) } }
     @Published var codec: VideoCodec { didSet { defaults.set(codec.rawValue, forKey: Key.codec) } }
     @Published var quality: Quality { didSet { defaults.set(quality.rawValue, forKey: Key.quality) } }
     @Published var autoCleanup: Bool { didSet { defaults.set(autoCleanup, forKey: Key.autoCleanup) } }
@@ -176,6 +182,7 @@ final class SettingsStore: ObservableObject {
             Key.preRollEnabled: false,
             Key.preRoll: 3.0,
             Key.audioEnabled: false,
+            Key.voiceSensitivity: 2,
             Key.codec: VideoCodec.hevc.rawValue,
             Key.quality: Quality.medium.rawValue,
             Key.autoCleanup: false,
@@ -201,6 +208,8 @@ final class SettingsStore: ObservableObject {
         preRoll = defaults.double(forKey: Key.preRoll)
         audioEnabled = defaults.bool(forKey: Key.audioEnabled)
         audioDeviceID = defaults.string(forKey: Key.audioDeviceID)
+        voiceTriggerEnabled = defaults.bool(forKey: Key.voiceTriggerEnabled)
+        voiceSensitivity = defaults.integer(forKey: Key.voiceSensitivity)
         codec = VideoCodec(rawValue: defaults.string(forKey: Key.codec) ?? "hevc") ?? .hevc
         quality = Quality(rawValue: defaults.string(forKey: Key.quality) ?? "medium") ?? .medium
         autoCleanup = defaults.bool(forKey: Key.autoCleanup)
@@ -230,6 +239,8 @@ final class SettingsStore: ObservableObject {
             preRoll: preRoll,
             audioEnabled: audioEnabled,
             audioDeviceID: audioDeviceID,
+            voiceTriggerEnabled: voiceTriggerEnabled,
+            voiceSensitivity: voiceSensitivity,
             codec: codec,
             quality: quality,
             autoCleanup: autoCleanup,
