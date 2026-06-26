@@ -7,6 +7,52 @@ enum VideoCodec: String, CaseIterable, Identifiable {
     var label: String { self == .hevc ? "HEVC (H.265)" : "H.264" }
 }
 
+/// Menu-bar appearance. `.normal` shows status colors (gray/green/red-blink);
+/// `.discreet` shows a single neutral monochrome glyph in every state so an
+/// onlooker can't tell monitoring or recording is active.
+enum MenuBarStyle: String, CaseIterable, Identifiable {
+    case normal, discreet
+    var id: String { rawValue }
+    var label: String {
+        self == .normal ? "Normal (status colors)" : "Discreet (neutral)"
+    }
+}
+
+/// Glyph used in discreet mode. A mix of neutral icons (not associated with
+/// cameras/recording) and a couple of recognizable ones, user's choice.
+enum DiscreetIcon: String, CaseIterable, Identifiable {
+    case circle, dot, moon, gear, bolt, cloud, sparkles, leaf, eye, camera
+    var id: String { rawValue }
+    var symbolName: String {
+        switch self {
+        case .circle: return "circle"
+        case .dot: return "circle.fill"
+        case .moon: return "moon"
+        case .gear: return "gearshape"
+        case .bolt: return "bolt"
+        case .cloud: return "cloud"
+        case .sparkles: return "sparkles"
+        case .leaf: return "leaf"
+        case .eye: return "eye"
+        case .camera: return "video"
+        }
+    }
+    var label: String {
+        switch self {
+        case .circle: return "Circle"
+        case .dot: return "Dot"
+        case .moon: return "Moon"
+        case .gear: return "Gear"
+        case .bolt: return "Bolt"
+        case .cloud: return "Cloud"
+        case .sparkles: return "Sparkles"
+        case .leaf: return "Leaf"
+        case .eye: return "Eye"
+        case .camera: return "Camera"
+        }
+    }
+}
+
 /// Immutable snapshot of all settings, read atomically on the capture queue so
 /// UI edits never tear a frame's worth of configuration.
 struct AppSettings: Equatable {
@@ -50,6 +96,8 @@ final class SettingsStore: ObservableObject {
         static let cleanupDays = "cleanupDays"
         static let guardMode = "guardMode"
         static let launchAtLogin = "launchAtLogin"
+        static let menuBarStyle = "menuBarStyle"
+        static let discreetIcon = "discreetIcon"
     }
 
     @Published var cameraID: String? { didSet { defaults.set(cameraID, forKey: Key.cameraID) } }
@@ -68,6 +116,8 @@ final class SettingsStore: ObservableObject {
     @Published var cleanupDays: Int { didSet { defaults.set(cleanupDays, forKey: Key.cleanupDays) } }
     @Published var guardMode: Bool { didSet { defaults.set(guardMode, forKey: Key.guardMode) } }
     @Published var launchAtLogin: Bool { didSet { defaults.set(launchAtLogin, forKey: Key.launchAtLogin) } }
+    @Published var menuBarStyle: MenuBarStyle { didSet { defaults.set(menuBarStyle.rawValue, forKey: Key.menuBarStyle) } }
+    @Published var discreetIcon: DiscreetIcon { didSet { defaults.set(discreetIcon.rawValue, forKey: Key.discreetIcon) } }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -87,6 +137,8 @@ final class SettingsStore: ObservableObject {
             Key.cleanupDays: 14,
             Key.guardMode: false,
             Key.launchAtLogin: false,
+            Key.menuBarStyle: MenuBarStyle.normal.rawValue,
+            Key.discreetIcon: DiscreetIcon.circle.rawValue,
         ])
 
         cameraID = defaults.string(forKey: Key.cameraID)
@@ -105,6 +157,8 @@ final class SettingsStore: ObservableObject {
         cleanupDays = defaults.integer(forKey: Key.cleanupDays)
         guardMode = defaults.bool(forKey: Key.guardMode)
         launchAtLogin = defaults.bool(forKey: Key.launchAtLogin)
+        menuBarStyle = MenuBarStyle(rawValue: defaults.string(forKey: Key.menuBarStyle) ?? "normal") ?? .normal
+        discreetIcon = DiscreetIcon(rawValue: defaults.string(forKey: Key.discreetIcon) ?? "circle") ?? .circle
     }
 
     func snapshot() -> AppSettings {

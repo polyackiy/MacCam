@@ -70,6 +70,22 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Appearance & Privacy") {
+                Picker("Menu-bar icon", selection: $settings.menuBarStyle) {
+                    ForEach(MenuBarStyle.allCases) { Text($0.label).tag($0) }
+                }
+                if settings.menuBarStyle == .discreet {
+                    Picker("Discreet icon", selection: $settings.discreetIcon) {
+                        ForEach(DiscreetIcon.allCases) { icon in
+                            Label(icon.label, systemImage: icon.symbolName).tag(icon)
+                        }
+                    }
+                    Text("In discreet mode the icon looks the same whether idle, monitoring, or recording — only this menu reveals the real status.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("System") {
                 Toggle("Guard mode: monitor while screen is locked", isOn: $settings.guardMode)
                 Toggle("Launch at login", isOn: Binding(
@@ -78,7 +94,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 620)
+        .frame(width: 460, height: 700)
         .onAppear {
             cameras = camera.availableCameras().map { ($0.uniqueID, $0.localizedName) }
             folderPath = fileStore.currentFolder().path

@@ -12,6 +12,9 @@ final class MenuBarController: NSObject {
     private var blinkTimer: Timer?
     private var blinkOn = true
     private var state: State = .off
+    private var statusText = "Idle"
+    private var style: MenuBarStyle = .normal
+    private var discreetSymbol = "circle"
 
     var onToggleMonitoring: (() -> Void)?
     var onOpenFolder: (() -> Void)?
@@ -63,19 +66,38 @@ final class MenuBarController: NSObject {
 
     func setState(_ state: State, statusText: String) {
         self.state = state
+        self.statusText = statusText
+        render()
+    }
+
+    /// Update menu-bar appearance (normal status colors vs discreet neutral
+    /// glyph) and re-render the current state.
+    func setAppearance(style: MenuBarStyle, discreetSymbol: String) {
+        self.style = style
+        self.discreetSymbol = discreetSymbol
+        render()
+    }
+
+    private func render() {
         toggleItem.title = (state == .off) ? "Start Monitoring" : "Stop Monitoring"
         statusLineItem.title = statusText
         blinkTimer?.invalidate()
         blinkTimer = nil
 
         guard let button = statusItem.button else { return }
+        button.alphaValue = 1
+
+        if style == .discreet {
+            // Identical neutral glyph in every state — no color, no blink.
+            button.image = templateSymbol(discreetSymbol)
+            return
+        }
+
         switch state {
         case .off:
             button.image = symbol("video.slash", color: .secondaryLabelColor)
-            button.alphaValue = 1
         case .monitoring:
             button.image = symbol("video.fill", color: .systemGreen)
-            button.alphaValue = 1
         case .recording:
             button.image = symbol("record.circle.fill", color: .systemRed)
             startBlinking()
@@ -84,6 +106,15 @@ final class MenuBarController: NSObject {
 
     func setLaunchAtLogin(_ on: Bool) {
         launchItem.state = on ? .on : .off
+    }
+
+    /// Monochrome template image that adapts to the menu-bar appearance.
+    private func templateSymbol(_ name: String) -> NSImage? {
+        let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .regular)
+        let image = NSImage(systemSymbolName: name, accessibilityDescription: "MacCam")?
+            .withSymbolConfiguration(config)
+        image?.isTemplate = true
+        return image
     }
 
     private func symbol(_ name: String, color: NSColor) -> NSImage? {

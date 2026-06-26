@@ -31,13 +31,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wireMenu()
         wireGuard()
         menuBar.setLaunchAtLogin(LaunchAtLogin.isEnabled)
+        updateMenuBarAppearance()
         lockMonitor.start()
 
         // Apply detector/recorder-affecting settings live while monitoring,
         // without rebuilding the capture session (camera/FPS/audio changes go
         // through reconfigureIfMonitoring instead).
         settings.objectWillChange
-            .sink { [weak self] in DispatchQueue.main.async { self?.applyLiveSettings() } }
+            .sink { [weak self] in
+                DispatchQueue.main.async {
+                    self?.applyLiveSettings()
+                    self?.updateMenuBarAppearance()
+                }
+            }
             .store(in: &cancellables)
 
         requestAccess()
@@ -117,6 +123,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         detector.pixelDelta = snap.pixelDelta
         detector.threshold = snap.motionThreshold
         detector.reset()
+    }
+
+    private func updateMenuBarAppearance() {
+        menuBar.setAppearance(style: settings.menuBarStyle,
+                              discreetSymbol: settings.discreetIcon.symbolName)
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {
