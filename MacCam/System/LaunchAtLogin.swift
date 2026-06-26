@@ -17,7 +17,7 @@ enum LaunchAtLogin {
             }
             return true
         } catch {
-            NSLog("MacCam: launch-at-login change failed: \(error)")
+            Log.system.error("Launch-at-login change failed: \(error.localizedDescription, privacy: .public)")
             return false
         }
     }

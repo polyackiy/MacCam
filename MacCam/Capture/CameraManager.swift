@@ -113,7 +113,7 @@ final class CameraManager: NSObject, ObservableObject {
             }
             device.unlockForConfiguration()
         } catch {
-            NSLog("MacCam: failed to set active format: \(error)")
+            Log.capture.error("Failed to set active format: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -127,7 +127,7 @@ final class CameraManager: NSObject, ObservableObject {
             self.formatDescription = text
             self.statusMessage = device.localizedName
         }
-        NSLog("MacCam: selected \(device.localizedName) — \(text)")
+        Log.capture.info("Selected \(device.localizedName, privacy: .public) — \(text, privacy: .public)")
     }
 
     func start() {
@@ -149,7 +149,7 @@ final class CameraManager: NSObject, ObservableObject {
     // MARK: Disconnect / runtime errors
 
     @objc private func handleRuntimeError(_ note: Notification) {
-        NSLog("MacCam: capture runtime error: \(String(describing: note.userInfo))")
+        Log.capture.error("Capture runtime error: \(String(describing: note.userInfo), privacy: .public)")
         DispatchQueue.main.async { self.statusMessage = "Camera error — retrying…" }
         sessionQueue.asyncAfter(deadline: .now() + 2) {
             if !self.session.isRunning { self.session.startRunning() }

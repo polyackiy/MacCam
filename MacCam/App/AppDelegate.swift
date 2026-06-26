@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var monitoring = false
     private var manualOverride = false
     private var settingsWindow: NSWindow?
+    private var aboutWindow: NSWindow?
     private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -51,7 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         requestAccess()
         updateMenu()
-        NSLog("MacCam launched")
+        Log.app.info("MacCam launched")
     }
 
     // MARK: Wiring
@@ -63,6 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         menuBar.onOpenFolder = { [weak self] in self?.fileStore.openInFinder() }
         menuBar.onOpenSettings = { [weak self] in self?.openSettings() }
+        menuBar.onAbout = { [weak self] in self?.openAbout() }
         menuBar.onToggleLaunchAtLogin = { [weak self] in
             self?.setLaunchAtLogin(!LaunchAtLogin.isEnabled)
         }
@@ -173,6 +175,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.center()
         settingsWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    private func openAbout() {
+        if aboutWindow == nil {
+            let hosting = NSHostingController(rootView: AboutView())
+            let window = NSWindow(contentViewController: hosting)
+            window.title = "About MacCam"
+            window.styleMask = [.titled, .closable]
+            window.isReleasedWhenClosed = false
+            aboutWindow = window
+        }
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        aboutWindow?.center()
+        aboutWindow?.makeKeyAndOrderFront(nil)
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

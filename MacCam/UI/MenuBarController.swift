@@ -20,6 +20,7 @@ final class MenuBarController: NSObject {
     var onOpenFolder: (() -> Void)?
     var onOpenSettings: (() -> Void)?
     var onToggleLaunchAtLogin: (() -> Void)?
+    var onAbout: (() -> Void)?
     var onQuit: (() -> Void)?
 
     override init() {
@@ -56,6 +57,10 @@ final class MenuBarController: NSObject {
         menu.addItem(launchItem)
 
         menu.addItem(.separator())
+
+        let about = NSMenuItem(title: "About MacCam", action: #selector(openAbout), keyEquivalent: "")
+        about.target = self
+        menu.addItem(about)
 
         let quit = NSMenuItem(title: "Quit MacCam", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
@@ -149,5 +154,6 @@ final class MenuBarController: NSObject {
     @objc private func openFolder() { onOpenFolder?() }
     @objc private func openSettings() { onOpenSettings?() }
     @objc private func toggleLaunch() { onToggleLaunchAtLogin?() }
+    @objc private func openAbout() { onAbout?() }
     @objc private func quit() { onQuit?() }
 }
