@@ -95,10 +95,8 @@ final class RecordingController {
         }
 
         // Recording schedule gate: outside its window, ignore motion so no clip
-        // starts (monitoring keeps running). Disabled schedule ⇒ always allowed.
-        let allowed = !recordingSchedule.enabled
-            || recordingSchedule.isActive(at: clock(), calendar: scheduleCalendar)
-        let effectiveMotion = motion && allowed
+        // starts (monitoring keeps running).
+        let effectiveMotion = motion && recordingScheduleAllows()
 
         switch fsm.step(motion: effectiveMotion, now: now) {
         case .none:
@@ -149,9 +147,7 @@ final class RecordingController {
 
         lock.lock(); defer { lock.unlock() }
 
-        let allowed = !recordingSchedule.enabled
-            || recordingSchedule.isActive(at: clock(), calendar: scheduleCalendar)
-        let effectiveTrigger = trigger && allowed
+        let effectiveTrigger = trigger && recordingScheduleAllows()
 
         switch fsm.step(motion: effectiveTrigger, now: now) {
         case .none:
@@ -190,6 +186,14 @@ final class RecordingController {
     }
 
     // MARK: Writer lifecycle (call with lock held)
+
+    /// Recording-schedule gate (call with lock held). A disabled schedule is
+    /// always allowed; otherwise the current time must fall inside the window.
+    /// Shared by the video and audio-only drive paths so the gate can't drift.
+    private func recordingScheduleAllows() -> Bool {
+        !recordingSchedule.enabled
+            || recordingSchedule.isActive(at: clock(), calendar: scheduleCalendar)
+    }
 
     /// Cheap gate (call with lock held, on the capture queue): consults only the
     /// cached limit flag and kicks off background maintenance. No disk I/O here.

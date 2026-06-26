@@ -228,6 +228,13 @@ final class CameraManager: NSObject, ObservableObject {
     /// or if no frame arrives within a short timeout. Never writes to disk.
     func captureSnapshot(_ completion: @escaping (CGImage?) -> Void) {
         sessionQueue.async {
+            // No camera in audio-only mode: there is no frame to grab, so return
+            // immediately instead of adding a video output to a camera-less
+            // session and stalling on the 3s timeout.
+            guard !self.settings.effectiveAudioOnly else {
+                DispatchQueue.main.async { completion(nil) }
+                return
+            }
             guard self.snapshotGrabber == nil else {   // a grab is already in flight
                 DispatchQueue.main.async { completion(nil) }
                 return

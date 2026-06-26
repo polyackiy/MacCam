@@ -160,6 +160,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func reconfigureIfMonitoring() {
         guard monitoring else { return }
         let snap = settings.snapshot()
+        // Finalize any in-progress clip before the capture session changes. A
+        // reconfigure can change which media flows (audio-only ⇄ video) or the
+        // video dimensions; an already-open writer is built for the old set, so
+        // continuing it would drop frames or splice mismatched tracks. Closing it
+        // here makes the next clip open cleanly with the new configuration.
+        recorder.stop()
         applyToDetector(snap)
         recorder.updateSettings(snap)
         camera.configure(settings: snap, delegate: captureDelegate)
