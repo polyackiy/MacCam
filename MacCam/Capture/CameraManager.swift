@@ -102,12 +102,10 @@ final class CameraManager: NSObject, ObservableObject {
         updateFormatString(device)
     }
 
-    /// Pick an audio device that yields a usable capture input. The system
-    /// default audio device may be an un-capturable Bluetooth/output device
-    /// (e.g. A2DP headphones), so all audio devices are enumerated, the built-in
-    /// microphone is preferred (Bluetooth last), and each is tried until one
-    /// produces a valid input. Returns nil if none work.
-    private func makeAudioInput() -> AVCaptureDeviceInput? {
+    /// All audio capture devices, deduped and ordered with the built-in
+    /// microphone first (Bluetooth last). The system DiscoverySession audio
+    /// types are unreliable on macOS, so `devices(for:)` is included too.
+    func availableMicrophones() -> [AVCaptureDevice] {
         var candidates: [AVCaptureDevice] = []
         var seen = Set<String>()
         func add(_ device: AVCaptureDevice?) {
@@ -121,9 +119,21 @@ final class CameraManager: NSObject, ObservableObject {
         }
         AVCaptureDevice.devices(for: .audio).forEach(add)   // reliable on macOS; includes built-in
         add(AVCaptureDevice.default(for: .audio))
+        return candidates.sorted { transportRank($0) < transportRank($1) }
+    }
 
-        candidates.sort { transportRank($0) < transportRank($1) }
-        for device in candidates {
+    /// Pick an audio device that yields a usable capture input. The user-selected
+    /// device (if any and present) is tried first; otherwise the built-in
+    /// microphone is preferred. The system default can be an un-capturable
+    /// Bluetooth/output device, so each candidate is tried until one produces a
+    /// valid input. Returns nil if none work.
+    private func makeAudioInput() -> AVCaptureDeviceInput? {
+        var ordered = availableMicrophones()
+        if let id = settings.audioDeviceID, !id.isEmpty,
+           let index = ordered.firstIndex(where: { $0.uniqueID == id }) {
+            ordered.insert(ordered.remove(at: index), at: 0)
+        }
+        for device in ordered {
             if let input = try? AVCaptureDeviceInput(device: device), session.canAddInput(input) {
                 return input
             }

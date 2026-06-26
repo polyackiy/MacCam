@@ -72,6 +72,7 @@ struct AppSettings: Equatable {
     var preRollEnabled: Bool
     var preRoll: Double
     var audioEnabled: Bool
+    var audioDeviceID: String?
     var codec: VideoCodec
     var quality: Quality
     var autoCleanup: Bool
@@ -100,6 +101,7 @@ final class SettingsStore: ObservableObject {
         static let preRollEnabled = "preRollEnabled"
         static let preRoll = "preRoll"
         static let audioEnabled = "audioEnabled"
+        static let audioDeviceID = "audioDeviceID"
         static let codec = "codec"
         static let quality = "quality"
         static let autoCleanup = "autoCleanup"
@@ -124,6 +126,7 @@ final class SettingsStore: ObservableObject {
     @Published var preRollEnabled: Bool { didSet { defaults.set(preRollEnabled, forKey: Key.preRollEnabled) } }
     @Published var preRoll: Double { didSet { defaults.set(preRoll, forKey: Key.preRoll) } }
     @Published var audioEnabled: Bool { didSet { defaults.set(audioEnabled, forKey: Key.audioEnabled) } }
+    @Published var audioDeviceID: String? { didSet { defaults.set(audioDeviceID, forKey: Key.audioDeviceID) } }
     @Published var codec: VideoCodec { didSet { defaults.set(codec.rawValue, forKey: Key.codec) } }
     @Published var quality: Quality { didSet { defaults.set(quality.rawValue, forKey: Key.quality) } }
     @Published var autoCleanup: Bool { didSet { defaults.set(autoCleanup, forKey: Key.autoCleanup) } }
@@ -173,6 +176,7 @@ final class SettingsStore: ObservableObject {
         preRollEnabled = defaults.bool(forKey: Key.preRollEnabled)
         preRoll = defaults.double(forKey: Key.preRoll)
         audioEnabled = defaults.bool(forKey: Key.audioEnabled)
+        audioDeviceID = defaults.string(forKey: Key.audioDeviceID)
         codec = VideoCodec(rawValue: defaults.string(forKey: Key.codec) ?? "hevc") ?? .hevc
         quality = Quality(rawValue: defaults.string(forKey: Key.quality) ?? "medium") ?? .medium
         autoCleanup = defaults.bool(forKey: Key.autoCleanup)
@@ -199,6 +203,7 @@ final class SettingsStore: ObservableObject {
             preRollEnabled: preRollEnabled,
             preRoll: preRoll,
             audioEnabled: audioEnabled,
+            audioDeviceID: audioDeviceID,
             codec: codec,
             quality: quality,
             autoCleanup: autoCleanup,

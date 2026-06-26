@@ -3,6 +3,8 @@
   "version" : "1.0",
   "strings" : {
     "About MacCam" : { "localizations" : { "ru" : { "stringUnit" : { "state" : "translated", "value" : "О MacCam" } } } },
+    "Automatic (built-in preferred)" : { "localizations" : { "ru" : { "stringUnit" : { "state" : "translated", "value" : "Автоматически (встроенный)" } } } },
+    "Microphone" : { "localizations" : { "ru" : { "stringUnit" : { "state" : "translated", "value" : "Микрофон" } } } },
     "Clear" : { "localizations" : { "ru" : { "stringUnit" : { "state" : "translated", "value" : "Очистить" } } } },
     "Detection Zones" : { "localizations" : { "ru" : { "stringUnit" : { "state" : "translated", "value" : "Зоны детекции" } } } },
     "Edit Detection Zones…" : { "localizations" : { "ru" : { "stringUnit" : { "state" : "translated", "value" : "Изменить зоны детекции…" } } } },

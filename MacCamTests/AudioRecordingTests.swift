@@ -15,7 +15,7 @@ final class AudioRecordingTests: XCTestCase {
         AppSettings(cameraID: nil, targetFPS: 30, sensitivity: 2, pixelDelta: 25,
                     postMotionCooldown: 1, minClipLength: 1, maxClipLength: 60,
                     preRollEnabled: false, preRoll: 3, audioEnabled: true,
-                    codec: .hevc, quality: .medium, autoCleanup: false,
+                    audioDeviceID: nil, codec: .hevc, quality: .medium, autoCleanup: false,
                     cleanupDays: 14, guardMode: false,
                     maxStorageGB: 0, minFreeSpaceGB: 0,
                     diskLimitPolicy: .loop, detectionMask: "")

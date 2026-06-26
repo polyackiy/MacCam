@@ -10,6 +10,7 @@ struct SettingsView: View {
     var onEditZones: () -> Void
 
     @State private var cameras: [(id: String, name: String)] = []
+    @State private var microphones: [(id: String, name: String)] = []
     @State private var folderPath: String = ""
     @State private var usageText = "—"
 
@@ -60,6 +61,14 @@ struct SettingsView: View {
                 Toggle("Record audio", isOn: Binding(
                     get: { settings.audioEnabled },
                     set: { settings.audioEnabled = $0; onReconfigure() }))
+                if settings.audioEnabled {
+                    Picker("Microphone", selection: Binding(
+                        get: { settings.audioDeviceID ?? "" },
+                        set: { settings.audioDeviceID = $0.isEmpty ? nil : $0; onReconfigure() })) {
+                        Text("Automatic (built-in preferred)").tag("")
+                        ForEach(microphones, id: \.id) { Text($0.name).tag($0.id) }
+                    }
+                }
                 Picker("Codec", selection: $settings.codec) {
                     ForEach(VideoCodec.allCases) { Text($0.label).tag($0) }
                 }
@@ -114,6 +123,7 @@ struct SettingsView: View {
         .frame(width: 460, height: 700)
         .onAppear {
             cameras = camera.availableCameras().map { ($0.uniqueID, $0.localizedName) }
+            microphones = camera.availableMicrophones().map { ($0.uniqueID, $0.localizedName) }
             folderPath = fileStore.currentFolder().path
             refreshUsage()
         }

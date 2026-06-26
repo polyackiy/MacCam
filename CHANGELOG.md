@@ -12,6 +12,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   current usage.
 - Detection zones: ignore parts of the frame via a 16×9 grid mask painted over a
   camera snapshot, reducing false triggers.
+- Microphone picker in Settings: choose which audio device records, or
+  "Automatic" (built-in preferred), with a fallback if the chosen device is
+  unavailable.
 
 ### Fixed
 - Audio was never recorded. The hardened runtime requires the
