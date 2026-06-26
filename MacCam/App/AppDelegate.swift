@@ -1,6 +1,7 @@
 import AppKit
 import AVFoundation
 import SwiftUI
+import Combine
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let settings = SettingsStore()
@@ -15,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var monitoring = false
     private var manualOverride = false
     private var settingsWindow: NSWindow?
+    private var cancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -31,6 +33,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBar.setLaunchAtLogin(LaunchAtLogin.isEnabled)
         lockMonitor.start()
 
+        // Apply detector/recorder-affecting settings live while monitoring,
+        // without rebuilding the capture session (camera/FPS/audio changes go
+        // through reconfigureIfMonitoring instead).
+        settings.objectWillChange
+            .sink { [weak self] in DispatchQueue.main.async { self?.applyLiveSettings() } }
+            .store(in: &cancellables)
+
         requestAccess()
         updateMenu()
         NSLog("MacCam launched")
@@ -46,11 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBar.onOpenFolder = { [weak self] in self?.fileStore.openInFinder() }
         menuBar.onOpenSettings = { [weak self] in self?.openSettings() }
         menuBar.onToggleLaunchAtLogin = { [weak self] in
-            guard let self else { return }
-            let new = !LaunchAtLogin.isEnabled
-            LaunchAtLogin.setEnabled(new)
-            self.settings.launchAtLogin = LaunchAtLogin.isEnabled
-            self.menuBar.setLaunchAtLogin(LaunchAtLogin.isEnabled)
+            self?.setLaunchAtLogin(!LaunchAtLogin.isEnabled)
         }
         menuBar.onQuit = { [weak self] in
             self?.stopMonitoring()
@@ -99,10 +104,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         camera.configure(settings: snap, delegate: captureDelegate)
     }
 
+    /// Push current settings into the detector and recorder without touching
+    /// the capture session. Cheap; safe to call on every settings edit.
+    private func applyLiveSettings() {
+        guard monitoring else { return }
+        let snap = settings.snapshot()
+        applyToDetector(snap)
+        recorder.updateSettings(snap)
+    }
+
     private func applyToDetector(_ snap: AppSettings) {
         detector.pixelDelta = snap.pixelDelta
         detector.threshold = snap.motionThreshold
         detector.reset()
+    }
+
+    private func setLaunchAtLogin(_ enabled: Bool) {
+        LaunchAtLogin.setEnabled(enabled)
+        let actual = LaunchAtLogin.isEnabled
+        settings.launchAtLogin = actual
+        menuBar.setLaunchAtLogin(actual)
     }
 
     private func updateMenu() {
@@ -127,11 +148,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 camera: camera,
                 fileStore: fileStore,
                 onReconfigure: { [weak self] in self?.reconfigureIfMonitoring() },
-                onLaunchAtLoginChange: { [weak self] enabled in
-                    LaunchAtLogin.setEnabled(enabled)
-                    self?.settings.launchAtLogin = LaunchAtLogin.isEnabled
-                    self?.menuBar.setLaunchAtLogin(LaunchAtLogin.isEnabled)
-                })
+                onLaunchAtLoginChange: { [weak self] enabled in self?.setLaunchAtLogin(enabled) })
             let hosting = NSHostingController(rootView: view)
             let window = NSWindow(contentViewController: hosting)
             window.title = "MacCam Settings"

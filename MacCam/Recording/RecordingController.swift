@@ -15,7 +15,8 @@ final class RecordingController {
     private var audioInput: AVAssetWriterInput?
     private var sessionStartPTS: CMTime = .invalid
     private var currentClipName: String?
-    private let ring = RingBuffer<CMSampleBuffer>(duration: 10)
+    private var ring: RingBuffer<CMSampleBuffer>
+    private var ringDuration: Double
 
     /// Called on the main queue with (isRecording, lastClipName?).
     var onStateChange: ((Bool, String?) -> Void)?
@@ -25,15 +26,23 @@ final class RecordingController {
     init(fileStore: FileStore, settings: AppSettings) {
         self.fileStore = fileStore
         self.settings = settings
+        self.ringDuration = settings.preRoll
+        self.ring = RingBuffer<CMSampleBuffer>(duration: settings.preRoll)
         self.fsm = RecordingFSM(minClip: settings.minClipLength,
                                 maxClip: settings.maxClipLength,
                                 cooldown: settings.postMotionCooldown)
     }
 
-    /// Apply new settings; only takes full effect on the next clip.
+    /// Apply new settings. Detector/threshold changes take effect immediately;
+    /// clip-timing (FSM) changes apply on the next clip to avoid disrupting an
+    /// in-progress recording.
     func updateSettings(_ s: AppSettings) {
         lock.lock(); defer { lock.unlock() }
         settings = s
+        if s.preRoll != ringDuration {
+            ringDuration = s.preRoll
+            ring = RingBuffer<CMSampleBuffer>(duration: s.preRoll)
+        }
         if !isRecording {
             fsm = RecordingFSM(minClip: s.minClipLength,
                                maxClip: s.maxClipLength,
