@@ -48,9 +48,15 @@ A free, local-only alternative to subscription surveillance apps.
 - Apple Silicon or Intel Mac with a camera
 - Xcode 15+ (to build from source)
 
-## Install (build from source)
+## Install
 
-MacCam is distributed as source. Build and install with:
+### Download a release
+
+Grab the latest `MacCam-*.dmg` from the
+[Releases page](https://github.com/polyackiy/MacCam/releases/latest), open it,
+and drag **MacCam** to Applications.
+
+### Build from source
 
 ```sh
 git clone https://github.com/polyackiy/MacCam.git
@@ -60,9 +66,9 @@ make install        # builds Release and copies MacCam.app to /Applications
 
 Or open `MacCam.xcodeproj` in Xcode and run (⌘R).
 
-Because the app is ad-hoc signed (not notarized with an Apple Developer ID),
-the first launch may show a Gatekeeper prompt. If macOS blocks it, right-click
-the app → **Open**, or run `xattr -dr com.apple.quarantine /Applications/MacCam.app`.
+> **Gatekeeper:** builds are ad-hoc signed, not notarized with an Apple Developer
+> ID, so the first launch may be blocked. Right-click the app → **Open**, or run
+> `xattr -dr com.apple.quarantine /Applications/MacCam.app`.
 
 On first launch, grant **camera** (and **microphone**, if you enable audio)
 access when prompted.
