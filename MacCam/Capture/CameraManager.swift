@@ -67,6 +67,28 @@ final class CameraManager: NSObject, ObservableObject {
         session.inputs.forEach { session.removeInput($0) }
         session.outputs.forEach { session.removeOutput($0) }
 
+        if settings.effectiveAudioOnly {
+            videoOutput = nil
+            currentDevice = nil
+            audioOutput = nil
+            if let aInput = makeAudioInput() {
+                session.addInput(aInput)
+                let aout = AVCaptureAudioDataOutput()
+                aout.setSampleBufferDelegate(delegate, queue: audioQueue)
+                if session.canAddOutput(aout) { session.addOutput(aout) }
+                audioOutput = aout
+                Log.capture.info("Audio-only input: \(aInput.device.localizedName, privacy: .public)")
+            } else {
+                Log.capture.error("Audio-only enabled but no usable microphone input was found")
+            }
+            session.commitConfiguration()
+            DispatchQueue.main.async {
+                self.formatDescription = loc("Audio only")
+                self.statusMessage = loc("Audio only")
+            }
+            return
+        }
+
         guard let device = pickDevice(settings.cameraID),
               let input = try? AVCaptureDeviceInput(device: device),
               session.canAddInput(input) else {
