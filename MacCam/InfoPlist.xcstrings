@@ -1,0 +1,38 @@
+{
+  "sourceLanguage" : "en",
+  "version" : "1.0",
+  "strings" : {
+    "NSCameraUsageDescription" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MacCam uses the camera to watch for motion and record clips."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MacCam использует камеру для наблюдения за движением и записи клипов."
+          }
+        }
+      }
+    },
+    "NSMicrophoneUsageDescription" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MacCam records audio in clips when audio recording is enabled."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MacCam записывает звук в клипах, если включена запись звука."
+          }
+        }
+      }
+    }
+  }
+}

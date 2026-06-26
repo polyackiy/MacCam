@@ -30,39 +30,39 @@ final class MenuBarController: NSObject {
     }
 
     private func buildMenu() {
-        toggleItem.title = "Start Monitoring"
+        toggleItem.title = loc("Start Monitoring")
         toggleItem.target = self
         toggleItem.action = #selector(toggle)
         menu.addItem(toggleItem)
 
         menu.addItem(.separator())
 
-        statusLineItem.title = "Idle"
+        statusLineItem.title = loc("Idle")
         statusLineItem.isEnabled = false
         menu.addItem(statusLineItem)
 
         menu.addItem(.separator())
 
-        let folder = NSMenuItem(title: "Open Clips Folder…", action: #selector(openFolder), keyEquivalent: "")
+        let folder = NSMenuItem(title: loc("Open Clips Folder…"), action: #selector(openFolder), keyEquivalent: "")
         folder.target = self
         menu.addItem(folder)
 
-        let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        let settings = NSMenuItem(title: loc("Settings…"), action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
 
-        launchItem.title = "Launch at Login"
+        launchItem.title = loc("Launch at Login")
         launchItem.target = self
         launchItem.action = #selector(toggleLaunch)
         menu.addItem(launchItem)
 
         menu.addItem(.separator())
 
-        let about = NSMenuItem(title: "About MacCam", action: #selector(openAbout), keyEquivalent: "")
+        let about = NSMenuItem(title: loc("About MacCam"), action: #selector(openAbout), keyEquivalent: "")
         about.target = self
         menu.addItem(about)
 
-        let quit = NSMenuItem(title: "Quit MacCam", action: #selector(quit), keyEquivalent: "q")
+        let quit = NSMenuItem(title: loc("Quit MacCam"), action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
 
@@ -85,7 +85,7 @@ final class MenuBarController: NSObject {
     }
 
     private func render() {
-        toggleItem.title = (state == .off) ? "Start Monitoring" : "Stop Monitoring"
+        toggleItem.title = (state == .off) ? loc("Start Monitoring") : loc("Stop Monitoring")
         statusLineItem.title = statusText
         blinkTimer?.invalidate()
         blinkTimer = nil

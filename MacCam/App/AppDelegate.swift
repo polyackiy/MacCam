@@ -144,11 +144,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func updateMenu() {
         DispatchQueue.main.async {
             if !self.monitoring {
-                self.menuBar.setState(.off, statusText: "Idle")
+                self.menuBar.setState(.off, statusText: loc("Idle"))
             } else if self.recorder.isRecording {
-                self.menuBar.setState(.recording, statusText: "Recording…")
+                self.menuBar.setState(.recording, statusText: loc("Recording…"))
             } else {
-                let last = self.recorder.lastClipName.map { "Last clip: \($0)" } ?? "Monitoring"
+                let last = self.recorder.lastClipName.map { loc("Last clip: %@", $0) } ?? loc("Monitoring")
                 self.menuBar.setState(.monitoring, statusText: last)
             }
         }
@@ -166,7 +166,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 onLaunchAtLoginChange: { [weak self] enabled in self?.setLaunchAtLogin(enabled) })
             let hosting = NSHostingController(rootView: view)
             let window = NSWindow(contentViewController: hosting)
-            window.title = "MacCam Settings"
+            window.title = loc("MacCam Settings")
             window.styleMask = [.titled, .closable, .miniaturizable]
             window.isReleasedWhenClosed = false
             settingsWindow = window
@@ -181,7 +181,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if aboutWindow == nil {
             let hosting = NSHostingController(rootView: AboutView())
             let window = NSWindow(contentViewController: hosting)
-            window.title = "About MacCam"
+            window.title = loc("About MacCam")
             window.styleMask = [.titled, .closable]
             window.isReleasedWhenClosed = false
             aboutWindow = window
@@ -210,11 +210,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showAccessDenied(_ media: AVMediaType) {
         let alert = NSAlert()
-        alert.messageText = "Camera access denied"
-        alert.informativeText = "MacCam needs camera access to monitor for motion. "
-            + "Enable it in System Settings → Privacy & Security → Camera."
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = loc("Camera access denied")
+        alert.informativeText = loc("MacCam needs camera access to monitor for motion. "
+            + "Enable it in System Settings → Privacy & Security → Camera.")
+        alert.addButton(withTitle: loc("Open System Settings"))
+        alert.addButton(withTitle: loc("Cancel"))
         if alert.runModal() == .alertFirstButtonReturn {
             if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera") {
                 NSWorkspace.shared.open(url)

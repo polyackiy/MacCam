@@ -4,6 +4,11 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>ru</string>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -23,9 +28,9 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>MacCam использует камеру для наблюдения и записи при обнаружении движения.</string>
+	<string>MacCam uses the camera to watch for motion and record clips.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>MacCam использует микрофон для записи звука в клипах, если включена запись звука.</string>
+	<string>MacCam records audio in clips when audio recording is enabled.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>
