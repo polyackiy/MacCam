@@ -35,6 +35,11 @@ final class CaptureDelegate: NSObject,
         lock.lock(); let mode = triggerMode; let audioOnly = self.audioOnly; lock.unlock()
 
         if output is AVCaptureAudioDataOutput {
+            // Keep these paired: `analyze` is gated by `usesVoice` (so the analyzer
+            // is only fed when voice is a trigger source), and `isActive()` is
+            // short-circuited by `isContinuous`. `isActive()` is wall-clock based
+            // (a hold window on `Date()`), while the recorder's FSM advances on
+            // buffer PTS — fine for real-time capture where the two track closely.
             if mode.usesVoice { voiceDetector.analyze(sampleBuffer) }
             if audioOnly {
                 let trigger = mode.isContinuous || voiceDetector.isActive()

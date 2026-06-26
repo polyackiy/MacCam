@@ -81,6 +81,52 @@ final class RecordingControllerAudioOnlyTests: XCTestCase {
         try? FileManager.default.removeItem(at: tmp)
     }
 
+    func testAudioOnlyRotatesIntoMultipleClips() throws {
+        let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("MacCamAudioOnlyRot-\(ProcessInfo.processInfo.globallyUniqueString)")
+        let fileStore = FileStore(defaults: UserDefaults.standard, defaultOverride: tmp)
+        var s = settings()
+        s.maxClipLength = 2   // force rotation on a short PTS window
+        let rc = RecordingController(fileStore: fileStore, settings: s)
+        // Advance the injected clock a minute per call so each rotated clip gets a
+        // distinct second-granularity filename (clock() is only consulted when a
+        // writer opens, since the recording schedule is disabled).
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        var tick = 0
+        rc.clock = { defer { tick += 1 }; return base.addingTimeInterval(Double(tick) * 60) }
+
+        // Exactly two finalizations: one rotation (at PTS ≥ 2s) + the closing
+        // stop(). Waiting for both guarantees every clip's finishWriting has
+        // completed before we enumerate, so no half-written file is inspected.
+        let twoClips = expectation(description: "two clips finalized")
+        twoClips.expectedFulfillmentCount = 2
+        twoClips.assertForOverFulfill = false
+        rc.onStateChange = { _, name in if name != nil { twoClips.fulfill() } }
+
+        let framesPerAudio = 1024
+        var audioPTS = CMTime.zero
+        // ~3.25s of PTS with sustained trigger → one rotation at 2s (stays below
+        // the second rotation at 4s), so exactly two clips form.
+        for _ in 0..<140 {
+            rc.handle(audioOnly: makeAudioSample(pts: audioPTS, frames: framesPerAudio), trigger: true)
+            audioPTS = CMTimeAdd(audioPTS, CMTime(value: CMTimeValue(framesPerAudio), timescale: Int32(sampleRate)))
+        }
+        rc.stop()   // finalize the last open clip
+
+        wait(for: [twoClips], timeout: 10)
+
+        let movs = try FileManager.default.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "mov" }
+        XCTAssertGreaterThanOrEqual(movs.count, 2, "rotation should produce multiple clips")
+        for url in movs {
+            let asset = AVURLAsset(url: url)
+            XCTAssertEqual(asset.tracks(withMediaType: .audio).count, 1, "each clip has one audio track")
+            XCTAssertEqual(asset.tracks(withMediaType: .video).count, 0, "no video track in audio-only clips")
+        }
+
+        try? FileManager.default.removeItem(at: tmp)
+    }
+
     func testNoTriggerProducesNoClip() throws {
         let (rc, tmp) = makeStore()
         let framesPerAudio = 1024
