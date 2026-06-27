@@ -1,9 +1,12 @@
 import SwiftUI
+import AppKit
 
-/// App behaviour and appearance: menu-bar icon style and startup options.
+/// App behaviour and appearance: language, menu-bar icon style, startup options.
 struct GeneralSettingsTab: View {
     let context: SettingsContext
     @ObservedObject private var settings: SettingsStore
+    @State private var languageOverride: AppLanguage? = LanguageOverride.current()
+    @State private var languageChanged = false
 
     init(context: SettingsContext) {
         self.context = context
@@ -12,6 +15,22 @@ struct GeneralSettingsTab: View {
 
     var body: some View {
         Form {
+            Section("Language") {
+                Picker("Language", selection: Binding(
+                    get: { languageOverride },
+                    set: { languageOverride = $0; LanguageOverride.set($0); languageChanged = true })) {
+                    Text("System default").tag(nil as AppLanguage?)
+                    ForEach(AppLanguage.allCases) { language in
+                        Text(language.autonym).tag(language as AppLanguage?)
+                    }
+                }
+                Text("Changes apply after you reopen MacCam.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if languageChanged {
+                    Button("Quit MacCam") { NSApp.terminate(nil) }
+                }
+            }
             Section("Menu bar") {
                 Picker("Menu-bar icon", selection: $settings.menuBarStyle) {
                     ForEach(MenuBarStyle.allCases) { Text($0.label).tag($0) }

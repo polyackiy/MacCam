@@ -11,6 +11,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Portuguese, Italian, Simplified Chinese, and Japanese — alongside English and
   Russian. Covers the whole UI and the system camera/microphone permission
   prompts; the app follows the system language automatically.
+- Manual language picker in Settings → General: override the interface language
+  instead of following the system (applies after you reopen MacCam).
 
 ## [1.1.0] - 2026-06-27
 
