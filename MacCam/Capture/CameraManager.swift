@@ -238,6 +238,11 @@ final class CameraManager: NSObject, ObservableObject {
     /// open a second session as monitoring starts.
     func startPreview(_ completion: @escaping (AVCaptureSession?) -> Void) {
         sessionQueue.async {
+            // Drop any prior dedicated preview session first, so reopening the
+            // editor can never leave two sessions contending for the same camera.
+            self.previewSession?.stopRunning()
+            self.previewSession = nil
+
             let hasCamera = self.session.inputs.contains {
                 ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.video) ?? false
             }

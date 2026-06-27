@@ -271,10 +271,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         zoneWindow = window
+        // Stop the camera preview reliably when the editor closes. SwiftUI's
+        // onDisappear does not fire for this NSWindow-hosted view (it isn't
+        // released on close), so the window-close notification drives teardown.
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(zoneWindowWillClose(_:)),
+            name: NSWindow.willCloseNotification, object: window)
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         window.center()
         window.makeKeyAndOrderFront(nil)
+    }
+
+    @objc private func zoneWindowWillClose(_ note: Notification) {
+        if let window = note.object as? NSWindow {
+            NotificationCenter.default.removeObserver(
+                self, name: NSWindow.willCloseNotification, object: window)
+        }
+        camera.stopPreview()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

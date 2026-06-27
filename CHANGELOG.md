@@ -14,6 +14,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Manual language picker in Settings → General: override the interface language
   instead of following the system (applies after you reopen MacCam).
 
+### Fixed
+- The detection-zone editor kept the camera running after the window was closed
+  and then showed a black preview (and never recovered) on reopen. Teardown is
+  now driven by the window closing — SwiftUI's `onDisappear` doesn't fire for the
+  editor's hosted window — and a stale preview session can no longer contend with
+  a new one for the camera.
+
 ## [1.1.0] - 2026-06-27
 
 ### Added

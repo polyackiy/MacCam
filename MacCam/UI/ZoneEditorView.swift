@@ -52,10 +52,9 @@ struct ZoneEditorView: View {
             mask = MotionMask(encoded: settings.detectionMask) ?? MotionMask()
             camera.startPreview { previewSession = $0 }
         }
-        .onDisappear {
-            camera.stopPreview()
-            previewSession = nil
-        }
+        // Teardown is driven by the window's close (AppDelegate observes it):
+        // onDisappear is unreliable for an NSWindow-hosted view that isn't
+        // released, so relying on it here would leak the preview session.
     }
 
     private func grid(in size: CGSize) -> some View {
