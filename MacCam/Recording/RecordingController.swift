@@ -10,6 +10,7 @@ final class RecordingController {
     private var settings: AppSettings
     private let lock = NSLock()
 
+    private let enhancer = AudioEnhancer()
     private var writer: AVAssetWriter?
     private var videoInput: AVAssetWriterInput?
     private var audioInput: AVAssetWriterInput?
@@ -281,11 +282,12 @@ final class RecordingController {
                 AVFormatIDKey: kAudioFormatMPEG4AAC,
                 AVNumberOfChannelsKey: 1,
                 AVSampleRateKey: 44_100,
-                AVEncoderBitRateKey: 64_000,
+                AVEncoderBitRateKey: 96_000,
             ]
             let a = AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings)
             a.expectsMediaDataInRealTime = true
             if w0.canAdd(a) { w0.add(a); aInput = a }
+            enhancer.reset()   // fresh filter/AGC state per clip
         }
 
         guard w0.startWriting() else { return }
@@ -312,6 +314,7 @@ final class RecordingController {
         guard let input = audioInput, sessionStartPTS.isValid else { return }
         let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
         guard CMTimeCompare(pts, sessionStartPTS) >= 0, input.isReadyForMoreMediaData else { return }
+        if settings.voiceEnhancement { enhancer.process(sampleBuffer) }
         input.append(sampleBuffer)
     }
 

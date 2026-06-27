@@ -1717,6 +1717,58 @@
         }
       }
     },
+    "Enhance voice": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stimme verbessern"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mejorar voz"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Améliorer la voix"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Migliora la voce"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音声を強調"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Melhorar voz"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Улучшать голос"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "增强人声"
+          }
+        }
+      }
+    },
     "Folder": {
       "localizations": {
         "de": {
@@ -2025,6 +2077,58 @@
           "stringUnit": {
             "state": "translated",
             "value": "护卫模式：在屏幕锁定时监控"
+          }
+        }
+      }
+    },
+    "High-pass + level evening for clearer speech. For stronger noise removal, turn on Voice Isolation in Control Centre.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hochpassfilter + Pegelangleichung für klarere Sprache. Für stärkere Geräuschunterdrückung aktiviere die Stimmisolation im Kontrollzentrum."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filtro de paso alto + nivelación de volumen para un habla más clara. Para una reducción de ruido más fuerte, activa el Aislamiento de voz en el Centro de Control."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filtre passe-haut + égalisation du niveau pour une voix plus claire. Pour une réduction du bruit plus forte, activez l'Isolation de la voix dans le Centre de contrôle."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filtro passa-alto + livellamento del volume per un parlato più chiaro. Per una riduzione del rumore più forte, attiva l'Isolamento voce in Centro di Controllo."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ハイパスフィルタと音量の平準化で音声をクリアに。より強力なノイズ除去は、コントロールセンターで「声を分離」をオンにしてください。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filtro passa-alta + nivelamento de volume para uma fala mais clara. Para uma redução de ruído mais forte, ative o Isolamento de Voz na Central de Controle."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фильтр верхних частот + выравнивание громкости для чёткой речи. Для сильного шумоподавления включите «Изоляцию голоса» в Пункте управления."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高通滤波 + 音量均衡，让语音更清晰。如需更强降噪，请在控制中心开启“人声突显”。"
           }
         }
       }

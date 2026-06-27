@@ -54,6 +54,11 @@ struct CameraSettingsTab: View {
                         Text("Automatic (built-in preferred)").tag("")
                         ForEach(microphones, id: \.id) { Text($0.name).tag($0.id) }
                     }
+                    Toggle("Enhance voice", isOn: $settings.voiceEnhancement)
+                    Text("High-pass + level evening for clearer speech. For stronger "
+                        + "noise removal, turn on Voice Isolation in Control Centre.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
