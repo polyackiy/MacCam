@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Voice enhancement for recorded audio (on by default, in Settings → Camera →
+  Audio): an 80 Hz high-pass to cut low-frequency rumble plus gentle automatic
+  level control, and the AAC bitrate raised from 64 to 96 kbit/s. Fully
+  on-device, no dependencies. A hint points to macOS Voice Isolation (Control
+  Centre) for stronger noise removal.
+
 ## [1.1.1] - 2026-06-27
 
 ### Added
