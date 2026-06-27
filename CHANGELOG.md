@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-06-27
+
 ### Added
 - Voice enhancement for recorded audio (on by default, in Settings → Camera →
   Audio): an 80 Hz high-pass to cut low-frequency rumble plus gentle automatic
@@ -88,7 +90,8 @@ First public release.
 - Continuous integration (build + test + lint) and a tagged release pipeline
   that publishes a DMG.
 
-[Unreleased]: https://github.com/polyackiy/MacCam/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/polyackiy/MacCam/compare/v1.1.2...HEAD
+[1.1.2]: https://github.com/polyackiy/MacCam/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/polyackiy/MacCam/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/polyackiy/MacCam/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/polyackiy/MacCam/releases/tag/v1.0.0
