@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Seven more interface languages — Spanish, French, German, Brazilian
+  Portuguese, Italian, Simplified Chinese, and Japanese — alongside English and
+  Russian. Covers the whole UI and the system camera/microphone permission
+  prompts; the app follows the system language automatically.
+
 ## [1.1.0] - 2026-06-27
 
 ### Added

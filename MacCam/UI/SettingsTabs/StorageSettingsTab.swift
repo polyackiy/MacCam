@@ -54,7 +54,7 @@ struct StorageSettingsTab: View {
         let usage = context.fileStore.folderUsage()
         let usedGB = StorageMath.bytesToGB(usage.totalBytes)
         let freeGB = StorageMath.bytesToGB(context.fileStore.volumeFreeBytes())
-        usageText = String(format: "%d clips · %.1f GB · %.1f GB free", usage.count, usedGB, freeGB)
+        usageText = loc("%d clips · %.1f GB · %.1f GB free", usage.count, usedGB, freeGB)
     }
 
     private func chooseFolder() {
@@ -62,7 +62,7 @@ struct StorageSettingsTab: View {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = "Choose"
+        panel.prompt = loc("Choose")
         if panel.runModal() == .OK, let url = panel.url {
             context.fileStore.setFolder(url)
             folderPath = context.fileStore.currentFolder().path
