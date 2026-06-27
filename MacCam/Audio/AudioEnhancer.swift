@@ -70,17 +70,21 @@ final class AudioEnhancer {
         gain = 1
     }
 
-    /// Apply the high-pass + AGC in place to the Float32 samples of `sampleBuffer`.
-    func process(_ sampleBuffer: CMSampleBuffer) {
+    /// Apply the high-pass + AGC and return a sample buffer holding the result.
+    /// Non-Float32 audio (or any failure) returns the original buffer unchanged.
+    /// The processed samples are written into the retained block buffer and that
+    /// block is wrapped in a fresh sample buffer, so the encoder receives exactly
+    /// these samples regardless of whether CoreMedia aliased or copied the source.
+    func process(_ sampleBuffer: CMSampleBuffer) -> CMSampleBuffer {
         guard let formatDesc = CMSampleBufferGetFormatDescription(sampleBuffer),
-              let asbdPtr = CMAudioFormatDescriptionGetStreamBasicDescription(formatDesc) else { return }
+              let asbdPtr = CMAudioFormatDescriptionGetStreamBasicDescription(formatDesc) else { return sampleBuffer }
         let asbd = asbdPtr.pointee
         guard asbd.mFormatID == kAudioFormatLinearPCM,
               asbd.mFormatFlags & kAudioFormatFlagIsFloat != 0,
-              asbd.mBitsPerChannel == 32 else { return }   // Float32 LPCM only
+              asbd.mBitsPerChannel == 32 else { return sampleBuffer }   // Float32 LPCM only
 
         let channelCount = Int(asbd.mChannelsPerFrame)
-        guard channelCount > 0 else { return }
+        guard channelCount > 0 else { return sampleBuffer }
         configure(rate: asbd.mSampleRate, channels: channelCount)
 
         var blockBuffer: CMBlockBuffer?
@@ -91,28 +95,32 @@ final class AudioEnhancer {
             blockBufferMemoryAllocator: nil,
             flags: kCMSampleBufferFlag_AudioBufferList_Assure16ByteAlignment,
             blockBufferOut: &blockBuffer)
-        guard status == noErr, blockBuffer != nil else { return }
+        guard status == noErr, let block = blockBuffer else { return sampleBuffer }
 
         let buffers = UnsafeMutableAudioBufferListPointer(&abl)
 
-        // Build (pointer, stride) per channel and a common frame count.
+        // Per-channel (pointer, stride) lanes and a common frame count, handling
+        // interleaved (one buffer), non-interleaved (one per channel), or bailing
+        // on any other layout.
         var lanes: [(base: UnsafeMutablePointer<Float>, stride: Int)] = []
         var frames = 0
         if buffers.count == 1 {
-            // Interleaved (or mono): one buffer holds `channelCount` channels.
-            guard let raw = buffers[0].mData else { return }
+            guard let raw = buffers[0].mData else { return sampleBuffer }
             let base = raw.assumingMemoryBound(to: Float.self)
             frames = Int(buffers[0].mDataByteSize) / (MemoryLayout<Float>.size * channelCount)
             for ch in 0..<channelCount { lanes.append((base + ch, channelCount)) }
-        } else {
-            // Non-interleaved: one buffer per channel.
-            for ch in 0..<min(buffers.count, channelCount) {
-                guard let raw = buffers[ch].mData else { return }
+        } else if buffers.count == channelCount {
+            var minFrames = Int.max
+            for ch in 0..<channelCount {
+                guard let raw = buffers[ch].mData else { return sampleBuffer }
                 lanes.append((raw.assumingMemoryBound(to: Float.self), 1))
+                minFrames = min(minFrames, Int(buffers[ch].mDataByteSize) / MemoryLayout<Float>.size)
             }
-            frames = Int(buffers[0].mDataByteSize) / MemoryLayout<Float>.size
+            frames = minFrames
+        } else {
+            return sampleBuffer
         }
-        guard frames > 0, states.count >= lanes.count else { return }
+        guard frames > 0, states.count >= lanes.count else { return sampleBuffer }
 
         // 1) High-pass each channel; accumulate energy for the AGC.
         var sumSquares: Float = 0
@@ -125,8 +133,9 @@ final class AudioEnhancer {
             }
         }
 
-        // 2) Gentle AGC: smooth the RMS, ramp gain toward the target across the buffer.
-        let rms = (frames * lanes.count) > 0 ? (sumSquares / Float(frames * lanes.count)).squareRoot() : 0
+        // 2) Gentle AGC: smooth the RMS, ramp gain toward the target across the
+        // buffer, and hard-limit so a boosted sample never clips the encoder.
+        let rms = (sumSquares / Float(frames * lanes.count)).squareRoot()
         envelope += envelopeSmoothing * (rms - envelope)
         let target = Self.targetGain(envelope: envelope, target: targetRMS, minGain: minGain, maxGain: maxGain)
         let startGain = gain
@@ -135,9 +144,23 @@ final class AudioEnhancer {
             let g = startGain + (target - startGain) * (Float(i) / denom)
             for lane in lanes {
                 let p = lane.base + i * lane.stride
-                p.pointee *= g
+                p.pointee = min(max(p.pointee * g, -1), 1)
             }
         }
         gain = target
+
+        // Wrap the processed block in a fresh sample buffer (preserving timing).
+        var timing = CMSampleTimingInfo()
+        CMSampleBufferGetSampleTimingInfo(sampleBuffer, at: 0, timingInfoOut: &timing)
+        var out: CMSampleBuffer?
+        let sampleSize = Int(asbd.mBytesPerFrame)
+        let create = CMSampleBufferCreate(
+            allocator: kCFAllocatorDefault, dataBuffer: block, dataReady: true,
+            makeDataReadyCallback: nil, refcon: nil, formatDescription: formatDesc,
+            sampleCount: CMSampleBufferGetNumSamples(sampleBuffer),
+            sampleTimingEntryCount: 1, sampleTimingArray: &timing,
+            sampleSizeEntryCount: 1, sampleSizeArray: [sampleSize], sampleBufferOut: &out)
+        guard create == noErr, let out else { return sampleBuffer }
+        return out
     }
 }

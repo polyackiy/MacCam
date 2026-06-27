@@ -4,7 +4,7 @@ import CoreMedia
 @testable import MacCam
 
 final class AudioEnhancerTests: XCTestCase {
-    func testProcessesFloat32BufferInPlaceAndRemovesDC() {
+    func testProcessesFloat32BufferAndRemovesDC() {
         let enhancer = AudioEnhancer()
         let rate = 48000.0
         var last: [Float] = []
@@ -12,11 +12,11 @@ final class AudioEnhancerTests: XCTestCase {
         // toward zero, exercising the real CMSampleBuffer/AudioBufferList glue.
         for _ in 0..<60 {
             let buffer = Self.makeFloat32Buffer(value: 0.3, frames: 1024, sampleRate: rate)
-            enhancer.process(buffer)
-            last = Self.readFloats(buffer)
+            last = Self.readFloats(enhancer.process(buffer))
         }
         XCTAssertFalse(last.isEmpty)
         XCTAssertTrue(last.allSatisfy { $0.isFinite }, "output must be finite")
+        XCTAssertTrue(last.allSatisfy { abs($0) <= 1 }, "output must stay within [-1, 1]")
         XCTAssertLessThan(last.map { abs($0) }.max() ?? 1, 0.05, "DC should be high-passed away")
     }
 
@@ -24,8 +24,7 @@ final class AudioEnhancerTests: XCTestCase {
         // Non-Float32 audio must pass through unchanged (no crash, no mutation).
         let enhancer = AudioEnhancer()
         let buffer = Self.makeInt16Buffer(value: 1000, frames: 512)
-        enhancer.process(buffer)
-        let samples = Self.readInt16(buffer)
+        let samples = Self.readInt16(enhancer.process(buffer))
         XCTAssertEqual(samples.first, 1000)
         XCTAssertTrue(samples.allSatisfy { $0 == 1000 }, "Int16 must be untouched")
     }

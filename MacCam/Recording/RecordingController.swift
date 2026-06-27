@@ -314,8 +314,8 @@ final class RecordingController {
         guard let input = audioInput, sessionStartPTS.isValid else { return }
         let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
         guard CMTimeCompare(pts, sessionStartPTS) >= 0, input.isReadyForMoreMediaData else { return }
-        if settings.voiceEnhancement { enhancer.process(sampleBuffer) }
-        input.append(sampleBuffer)
+        let buffer = settings.voiceEnhancement ? enhancer.process(sampleBuffer) : sampleBuffer
+        input.append(buffer)
     }
 
     private func finishWriter() {
