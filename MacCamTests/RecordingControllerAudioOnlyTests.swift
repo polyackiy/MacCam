@@ -54,6 +54,64 @@ final class RecordingControllerAudioOnlyTests: XCTestCase {
         return (RecordingController(fileStore: fileStore, settings: settings()), tmp)
     }
 
+    private func makeFloat32AudioSample(pts: CMTime, frames: Int) -> CMSampleBuffer {
+        var asbd = AudioStreamBasicDescription(
+            mSampleRate: sampleRate, mFormatID: kAudioFormatLinearPCM,
+            mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked,
+            mBytesPerPacket: 4, mFramesPerPacket: 1, mBytesPerFrame: 4,
+            mChannelsPerFrame: 1, mBitsPerChannel: 32, mReserved: 0)
+        var fmt: CMFormatDescription?
+        CMAudioFormatDescriptionCreate(allocator: kCFAllocatorDefault, asbd: &asbd,
+                                       layoutSize: 0, layout: nil, magicCookieSize: 0,
+                                       magicCookie: nil, extensions: nil, formatDescriptionOut: &fmt)
+        let byteCount = frames * 4
+        var block: CMBlockBuffer?
+        CMBlockBufferCreateWithMemoryBlock(allocator: kCFAllocatorDefault, memoryBlock: nil,
+                                           blockLength: byteCount, blockAllocator: kCFAllocatorDefault,
+                                           customBlockSource: nil, offsetToData: 0, dataLength: byteCount,
+                                           flags: 0, blockBufferOut: &block)
+        var samples = (0..<frames).map { Float(0.2 * sin(2 * Double.pi * 440 * Double($0) / sampleRate)) }
+        samples.withUnsafeBytes {
+            CMBlockBufferReplaceDataBytes(with: $0.baseAddress!, blockBuffer: block!,
+                                          offsetIntoDestination: 0, dataLength: byteCount)
+        }
+        var timing = CMSampleTimingInfo(duration: CMTime(value: 1, timescale: Int32(sampleRate)),
+                                        presentationTimeStamp: pts, decodeTimeStamp: .invalid)
+        var sample: CMSampleBuffer?
+        CMSampleBufferCreate(allocator: kCFAllocatorDefault, dataBuffer: block, dataReady: true,
+                             makeDataReadyCallback: nil, refcon: nil, formatDescription: fmt,
+                             sampleCount: frames, sampleTimingEntryCount: 1, sampleTimingArray: &timing,
+                             sampleSizeEntryCount: 1, sampleSizeArray: [4], sampleBufferOut: &sample)
+        return sample!
+    }
+
+    /// Float32 audio with voice enhancement on (the default) must still produce a
+    /// valid, encodable audio track — i.e. the freshly-wrapped sample buffer the
+    /// enhancer returns is accepted by AVAssetWriter.
+    func testAudioOnlyFloat32WithEnhancementProducesAudioTrack() throws {
+        let (rc, tmp) = makeStore()
+        let clipWritten = expectation(description: "clip finalized")
+        clipWritten.assertForOverFulfill = false
+        rc.onStateChange = { _, name in if name != nil { clipWritten.fulfill() } }
+
+        let framesPerAudio = 1024
+        var audioPTS = CMTime.zero
+        for i in 0..<260 {
+            rc.handle(audioOnly: makeFloat32AudioSample(pts: audioPTS, frames: framesPerAudio),
+                      trigger: i < 130)
+            audioPTS = CMTimeAdd(audioPTS, CMTime(value: CMTimeValue(framesPerAudio), timescale: Int32(sampleRate)))
+        }
+        wait(for: [clipWritten], timeout: 10)
+
+        let clip = try FileManager.default.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil)
+            .first { $0.pathExtension == "m4a" }
+        let asset = AVURLAsset(url: try XCTUnwrap(clip))
+        XCTAssertEqual(asset.tracks(withMediaType: .audio).count, 1,
+                       "enhanced Float32 audio must produce a valid audio track")
+        XCTAssertEqual(asset.tracks(withMediaType: .video).count, 0)
+        try? FileManager.default.removeItem(at: tmp)
+    }
+
     func testAudioOnlyClipHasAudioTrackAndNoVideoTrack() throws {
         let (rc, tmp) = makeStore()
         let clipWritten = expectation(description: "clip finalized")

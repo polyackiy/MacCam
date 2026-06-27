@@ -116,7 +116,7 @@ final class AudioEnhancer {
                 lanes.append((raw.assumingMemoryBound(to: Float.self), 1))
                 minFrames = min(minFrames, Int(buffers[ch].mDataByteSize) / MemoryLayout<Float>.size)
             }
-            frames = minFrames
+            frames = minFrames   // any ragged tail past min is emitted unprocessed (unreachable for mono capture)
         } else {
             return sampleBuffer
         }
@@ -144,7 +144,9 @@ final class AudioEnhancer {
             let g = startGain + (target - startGain) * (Float(i) / denom)
             for lane in lanes {
                 let p = lane.base + i * lane.stride
-                p.pointee = min(max(p.pointee * g, -1), 1)
+                // Float.minimum/maximum favour the number over NaN, so a stray
+                // non-finite input is clamped instead of leaking to the encoder.
+                p.pointee = Float.minimum(Float.maximum(p.pointee * g, -1), 1)
             }
         }
         gain = target
