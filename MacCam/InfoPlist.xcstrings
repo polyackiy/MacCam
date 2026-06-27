@@ -1,38 +1,122 @@
 {
-  "sourceLanguage" : "en",
-  "version" : "1.0",
-  "strings" : {
-    "NSCameraUsageDescription" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "MacCam uses the camera to watch for motion and record clips."
+  "sourceLanguage": "en",
+  "strings": {
+    "NSCameraUsageDescription": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MacCam verwendet die Kamera, um auf Bewegung zu achten und Clips aufzunehmen."
           }
         },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "MacCam использует камеру для наблюдения за движением и записи клипов."
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MacCam uses the camera to watch for motion and record clips."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MacCam usa la cámara para detectar movimiento y grabar clips."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MacCam utilise la caméra pour détecter les mouvements et enregistrer des clips."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MacCam usa la videocamera per rilevare il movimento e registrare clip."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MacCam はカメラを使用してモーションを監視し、クリップを録画します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O MacCam usa a câmera para monitorar movimento e gravar clipes."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MacCam использует камеру для наблюдения за движением и записи клипов."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MacCam 使用摄像头监视移动并录制片段。"
           }
         }
       }
     },
-    "NSMicrophoneUsageDescription" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "MacCam records audio in clips when audio recording is enabled."
+    "NSMicrophoneUsageDescription": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MacCam nimmt Audio in Clips auf, wenn die Audioaufnahme aktiviert ist."
           }
         },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "MacCam записывает звук в клипах, если включена запись звука."
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MacCam records audio in clips when audio recording is enabled."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MacCam graba audio en los clips cuando la grabación de audio está activada."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MacCam enregistre l'audio dans les clips lorsque l'enregistrement audio est activé."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MacCam registra l'audio nei clip quando la registrazione audio è attiva."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MacCam はオーディオ録音が有効な場合、クリップにオーディオを録音します。"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O MacCam grava áudio nos clipes quando a gravação de áudio está ativada."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MacCam записывает звук в клипах, если включена запись звука."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "启用音频录制后，MacCam 会在片段中录制音频。"
           }
         }
       }
     }
-  }
+  },
+  "version": "1.0"
 }
